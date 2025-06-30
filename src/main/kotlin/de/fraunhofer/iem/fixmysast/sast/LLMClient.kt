@@ -14,7 +14,7 @@ object LLMClient {
     private const val API_URL = "https://fhgenie-api-iem-dev-assist.openai.azure.com/api/generate"
 
     //Open AI Key:
-    private const val API_KEY = "81afdae23b3c4050a77b3115415a11c3"
+    private const val API_KEY = ""
 
     fun getExplanation(issue: SASTIssue, level: ExpertiseLevel = ExpertiseLevel.BEGINNER): String? {
 
@@ -152,22 +152,49 @@ object LLMClient {
      */
     private fun buildPromptByLevel(issue: SASTIssue, level: ExpertiseLevel): String = when (level) {
         ExpertiseLevel.BEGINNER -> """
-            You are an assistant helping a brand‑new software developer understand security.
+            You are an expert in software security and you need to explain a specific SAST error to a brand‑new software developer understand security.
             In no more than 120 words, explain the vulnerability below in plain, everyday language.
             Avoid jargon; use analogies when useful.
-            Details:\n${issue.codeSnippet}
+            Here are the relevant details:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
+            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
+            Also, include the relevant details at the start:
+            -Original Message:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
         """.trimIndent()
         ExpertiseLevel.INTERMEDIATE -> """
-            You are an assistant advising a developer with 3‑5 years of experience.
+            You are an expert in software security advising a developer with 3‑5 years of experience.
             Give a concise (≤200 word) explanation of the vulnerability and how it works in code.
             Include a one‑paragraph mitigation strategy.
-            Details:\n${issue.codeSnippet}
+            Here are the relevant details:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
+            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
+            Also, include the relevant details at the start:
+            -Original Message:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
         """.trimIndent()
         ExpertiseLevel.ADVANCED -> """
             Act as an application‑security expert.
             Provide a comprehensive technical deep‑dive (≤350 words) into the vulnerability, including attack vectors, root cause, and relevant standards (e.g., CWE, OWASP).
             End with references to RFCs or papers.
-            Details:\n${issue.codeSnippet}
+            Here are the relevant details:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
+            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
+            Also, include the relevant details at the start:
+            -Original Message:
+                - Type: **${issue.type}**
+                - Description "${issue.message}"?
+                - Tag: ${issue.tags[0]}
         """.trimIndent()
     }
 }
