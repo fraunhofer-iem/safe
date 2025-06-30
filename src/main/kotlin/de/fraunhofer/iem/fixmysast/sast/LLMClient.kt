@@ -70,6 +70,7 @@ object LLMClient {
         """.trimIndent()
 
             OutputStreamWriter(connection.outputStream).use { it.write(requestBody) }
+            println(requestBody)
 
             val responseCode = connection.responseCode
 
@@ -147,24 +148,56 @@ object LLMClient {
         """.trimIndent()
     }
 
+//
+//    private fun markdownByHand(issue:SASTIssue, LLMResponse): String {
+//    return """
+//
+//
+//
+//
+//        ___
+//
+//
+//
+//        ### **1. Overview and Description**
+//        -Original Message:
+//                - Type: **${issue.type}**
+//                - Description "${issue.message}"?
+//                - Tag: ${issue.tags[0]}
+//        -Explananation: $LLMResponse.description
+//
+//
+//        ___
+//
+//        ### **2. Suggested Code Fix.**
+//        ${LLMResponse.code}
+//    """.trimIndent()
+//    }
     /**
      * Different prompt templates for each expertise level.
      */
     private fun buildPromptByLevel(issue: SASTIssue, level: ExpertiseLevel): String = when (level) {
         ExpertiseLevel.BEGINNER -> """
-            You are an expert in software security and you need to explain a specific SAST error to a brand‑new software developer understand security.
-            In no more than 120 words, explain the vulnerability below in plain, everyday language.
-            Avoid jargon; use analogies when useful.
-            Here are the relevant details:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
-            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
-            Also, include the relevant details at the start:
-            -Original Message:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
+                You are an expert in software security. Explain the given error from the static analysis tool to a novice software developer in a way that helps them understand the security issue.
+                 
+                Follow the output format strictly. The explanation must not exceed 120 words.
+                 
+                - Explanation: <explanation of the given error>
+                - CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                 
+                Below is the information provided by the static analysis tool:
+                 
+                Error Type:
+                ${issue.type}
+                 
+                Error Description:
+                ${issue.message}
+                 
+                Error Tag:
+                ${issue.tags[0]}
+                 
+                Code Location of the error:
+                ${issue.codeSnippet}
         """.trimIndent()
         ExpertiseLevel.INTERMEDIATE -> """
             You are an expert in software security advising a developer with 3‑5 years of experience.
@@ -174,7 +207,7 @@ object LLMClient {
                 - Type: **${issue.type}**
                 - Description "${issue.message}"?
                 - Tag: ${issue.tags[0]}
-            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
+            Using this, suggest a secure code fix:\n${issue.codeSnippet}
             Also, include the relevant details at the start:
             -Original Message:
                 - Type: **${issue.type}**
@@ -189,7 +222,7 @@ object LLMClient {
                 - Type: **${issue.type}**
                 - Description "${issue.message}"?
                 - Tag: ${issue.tags[0]}
-            Using this, suggest a secure cod fix:\n${issue.codeSnippet}
+            Using this, suggest a secure code fix:\n${issue.codeSnippet}
             Also, include the relevant details at the start:
             -Original Message:
                 - Type: **${issue.type}**

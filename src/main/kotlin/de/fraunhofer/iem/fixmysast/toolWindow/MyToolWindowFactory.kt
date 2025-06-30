@@ -115,12 +115,8 @@ class MyToolWindowFactory : ToolWindowFactory {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         rightPanel.add(browser.component)
 
-//        val levelSelector = ComboBox(ExpertiseLevel.values())
-//        rightPanel.add(levelSelector)
-
         // Load SARIF results from resources
         val parsedResult = SASTParser.parseSarifFromProject(project)
-
 
         var list = mutableListOf<SASTIssue>()
 
@@ -180,25 +176,6 @@ class MyToolWindowFactory : ToolWindowFactory {
                 //val level = levelSelector.selectedItem as ExpertiseLevel
                 val level = de.fraunhofer.iem.fixmysast.sast.LevelStateService.get().current
                 renderExplanation(issue,level,browser)
-
-//                try {
-//                    val explanationMarkdown = parsedResult.llmExplanations[issuesList.selectedValue]
-//                        ?: "*LLM is slow and busy generating. Please wait*"
-//                    val headertags = issuesList.selectedValue.tags[0]
-//                    val rawExplanationHtml = renderer.render(parser.parse(explanationMarkdown))
-//                    val styleHtml = wrapHtmlWithStyle(rawExplanationHtml, headertags)
-//                    println("Explanation (HTML):\n$styleHtml")
-//                    SwingUtilities.invokeLater {
-//                        browser.loadHTML(styleHtml)
-//
-//                    }
-//
-//                } catch (e: Exception) {
-//                    e.printStackTrace()
-//                    SwingUtilities.invokeLater {
-//                        browser.loadHTML("<b>Error rendering explanation.</b>")
-//                    }
-//                }
 
             }
         }
