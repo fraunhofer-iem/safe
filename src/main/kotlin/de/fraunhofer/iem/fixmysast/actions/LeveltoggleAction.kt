@@ -7,12 +7,11 @@ import de.fraunhofer.iem.fixmysast.sast.LevelStateService
 class LevelToggleAction(private val level: ExpertiseLevel) : ToggleAction(level.label) {
 
     override fun isSelected(e: AnActionEvent): Boolean =
-        LevelStateService.current == level
+        LevelStateService.get().current == level
 
     override fun setSelected(e: AnActionEvent, state: Boolean) {
-        if (state) LevelStateService.current = level
+        if (state) LevelStateService.get().current = level
     }
-
 }
 
 // Container holds 3 LevelToggleAction items

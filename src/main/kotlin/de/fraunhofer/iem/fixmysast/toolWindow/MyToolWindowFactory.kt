@@ -29,6 +29,8 @@ import de.fraunhofer.iem.fixmysast.sast.LLMClient
 import io.ktor.client.request.invoke
 import io.ktor.http.invoke
 
+import com.intellij.openapi.util.Disposer
+import de.fraunhofer.iem.fixmysast.sast.LevelStateService
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
@@ -107,7 +109,6 @@ class MyToolWindowFactory : ToolWindowFactory {
             border = TitledBorder("Description")
         }
 
-
         // Use JCEF browser for rich HTML content
         val browser = JBCefBrowser()
 
@@ -177,7 +178,7 @@ class MyToolWindowFactory : ToolWindowFactory {
 
                 val issue = issuesList.selectedValue ?: return@addListSelectionListener
                 //val level = levelSelector.selectedItem as ExpertiseLevel
-                val level = de.fraunhofer.iem.fixmysast.sast.LevelStateService.current
+                val level = de.fraunhofer.iem.fixmysast.sast.LevelStateService.get().current
                 renderExplanation(issue,level,browser)
 
 //                try {
@@ -201,14 +202,7 @@ class MyToolWindowFactory : ToolWindowFactory {
 
             }
         }
-        //Re-render current issue when user switches depth level
-//        levelSelector.addActionListener {
-//            val issue = issuesList.selectedValue
-//            if (issue != null){
-//                val level = levelSelector.selectedItem as ExpertiseLevel
-//                renderExplanation(issue,level,browser)
-//            }
-//        }
+
         val listScrollPane = JBScrollPane(issuesList)
         leftPanel.add(listScrollPane)
 
@@ -223,6 +217,17 @@ class MyToolWindowFactory : ToolWindowFactory {
 
         val mainPanel = JPanel().apply {
 
+        }
+
+        val levelListener: (ExpertiseLevel) -> Unit = listener@ {newLevel ->
+            val issue = issuesList.selectedValue ?: return@listener
+            renderExplanation(issue, newLevel, browser)
+        }
+
+        LevelStateService.get().addListener(levelListener)
+
+        Disposer.register(toolWindow.disposable) {
+            LevelStateService.get().removeListener(levelListener)
         }
 
         val content = ContentFactory.getInstance().createContent(splitPane, "", false)
