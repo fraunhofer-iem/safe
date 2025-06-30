@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.25"
@@ -8,6 +10,7 @@ group = "de.fraunhofer.iem"
 version = "1.0"
 
 repositories {
+    maven("https://www.jetbrains.com/intellij-repository/releases")
     mavenCentral()
     intellijPlatform {
         defaultRepositories()
@@ -19,12 +22,14 @@ repositories {
 dependencies {
 
     intellijPlatform {
-        create("IC", "2024.3.6")
+        create("IC", "2024.2.6")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         // Add necessary plugin dependencies for compilation here, example:
          bundledPlugin("com.intellij.java")
     }
+
+   // implementation("org.intellij.markdown:markdown:0.5.0")
 }
 
 intellijPlatform {
@@ -49,3 +54,4 @@ tasks {
         kotlinOptions.jvmTarget = "21"
     }
 }
+
