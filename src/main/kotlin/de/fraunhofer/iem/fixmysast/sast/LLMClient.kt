@@ -200,34 +200,70 @@ object LLMClient {
                 ${issue.codeSnippet}
         """.trimIndent()
         ExpertiseLevel.INTERMEDIATE -> """
-            You are an expert in software security advising a developer with 3‑5 years of experience.
-            Give a concise (≤200 word) explanation of the vulnerability and how it works in code.
-            Include a one‑paragraph mitigation strategy.
-            Here are the relevant details:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
-            Using this, suggest a secure code fix:\n${issue.codeSnippet}
-            Also, include the relevant details at the start:
-            -Original Message:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
+            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an intermediate-level developer. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
+ 
+            ---
+            Follow the output format strictly. The explanation must not exceed 120 words.
+             
+            - Explanation: <concise technical explanation of the given error>
+            - Example code: <representative code snippet illustrating the issue>
+            - CodeFixSuggestion: <code fix suggestion to resolve the given error>
+            ---
+             
+            Below is the information provided by the static analysis tool:
+             
+            Error Type:
+            ```
+            ${issue.type}
+            ```
+             
+            Error Description:
+            ```
+            ${issue.message}
+            ```
+             
+            Error Tag:
+            ```
+            ${issue.tags[0]}
+            ```
+             
+            Code Location of the error:
+            ```
+            ${issue.codeSnippet}
+            ```
         """.trimIndent()
         ExpertiseLevel.ADVANCED -> """
-            Act as an application‑security expert.
-            Provide a comprehensive technical deep‑dive (≤350 words) into the vulnerability, including attack vectors, root cause, and relevant standards (e.g., CWE, OWASP).
-            End with references to RFCs or papers.
-            Here are the relevant details:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
-            Using this, suggest a secure code fix:\n${issue.codeSnippet}
-            Also, include the relevant details at the start:
-            -Original Message:
-                - Type: **${issue.type}**
-                - Description "${issue.message}"?
-                - Tag: ${issue.tags[0]}
+            You are an expert in software security. Explain the given error from the static analysis tool to an advanced-level developer in a way that helps them understand the security issue.
+ 
+                ---
+                Follow the output format strictly. The explanation must not exceed 120 words.
+                 
+                - Explanation: <concise technical explanation of the given error>
+                - CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                ---
+                 
+                 
+                Below is the information provided by the static analysis tool:
+                 
+                Error Type:
+                ```
+                ${issue.type}
+                ```
+                 
+                Error Description:
+                ```
+                ${issue.message}
+                ```
+                 
+                Error Tag:
+                ```
+                ${issue.tags[0]}
+                ```
+                 
+                Code Location of the error:
+                ```
+                ${issue.codeSnippet}
+                ```
         """.trimIndent()
     }
 }
