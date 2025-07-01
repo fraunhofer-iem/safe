@@ -26,6 +26,7 @@
                 anchor="right"
                 secondary="false"/>
 
+        <annotator language="JAVA" implementationClass="de.fraunhofer.iem.fixmysast.ui.annotators.SRMAnnotator"/>
     </extensions>
 
     <!-- Project-level listener -->
