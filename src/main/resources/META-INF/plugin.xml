@@ -14,6 +14,7 @@
 
     <!-- Platform dependency -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
 
     <!-- ===== Extensions & listeners ===== -->
     <extensions defaultExtensionNs="com.intellij">
