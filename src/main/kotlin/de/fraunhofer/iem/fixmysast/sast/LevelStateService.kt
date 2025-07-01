@@ -1,20 +1,41 @@
 package de.fraunhofer.iem.fixmysast.sast
-
+import com.intellij.openapi.components.*
+import com.intellij.openapi.components.Service.Level.APP
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.ide.util.PropertiesComponent
 
 @Service(Service.Level.APP)
-class LevelStateService {
+@State(
+    name = "FixMySAST.level",
+    storages = [Storage(StoragePathMacros.NON_ROAMABLE_FILE)]
+)
+class LevelStateService: PersistentStateComponent<LevelStateService.State>
+{
+    data class State(
+        var level: ExpertiseLevel = ExpertiseLevel.INTERMEDIATE
+    )
+    private var state = State()
 
-    var current: ExpertiseLevel = ExpertiseLevel.BEGINNER
+    private val listeners = mutableListOf<(ExpertiseLevel) -> Unit>()
+
+    override fun getState(): State = state
+
+    override fun loadState(state: State) {
+        this.state = state
+        _current = state.level
+    }
+
+    private var _current: ExpertiseLevel = state.level
+
+    var current: ExpertiseLevel
+        get() = _current
         set(value) {
-            if (field == value) return
-                field = value
-                listeners.forEach { it(value) }
-            }
-
-    private val listeners = mutableSetOf<(ExpertiseLevel) -> Unit>()
+            if (_current == value) return
+            _current = value
+            state.level = value
+            listeners.forEach { it(value) }
+        }
 
     fun addListener(listener: (ExpertiseLevel) -> Unit) {
         listeners.add(listener)
@@ -24,7 +45,7 @@ class LevelStateService {
     }
 
     companion object {
-        fun get() = service<LevelStateService>()
+        fun get(): LevelStateService = service()
     }
 //    private const val KEY = "FixMySAST.Level"
 //    private val props: PropertiesComponent = PropertiesComponent.getInstance()

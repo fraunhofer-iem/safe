@@ -14,9 +14,9 @@ object LLMClient {
     private const val API_URL = "https://fhgenie-api-iem-dev-assist.openai.azure.com/api/generate"
 
     //Open AI Key:
-    private const val API_KEY = ""
+    private const val API_KEY = "81afdae23b3c4050a77b3115415a11c3"
 
-    fun getExplanation(issue: SASTIssue, level: ExpertiseLevel = ExpertiseLevel.BEGINNER): String? {
+    fun getExplanation(issue: SASTIssue, level: ExpertiseLevel = ExpertiseLevel.INTERMEDIATE): String? {
 
         val mapper = jacksonObjectMapper()
 

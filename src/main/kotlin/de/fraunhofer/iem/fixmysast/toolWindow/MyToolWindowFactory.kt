@@ -1,7 +1,8 @@
 package de.fraunhofer.iem.fixmysast.toolWindow
-import ai.grazie.detector.ngram.main
-import ai.grazie.utils.mpp.time.invoke
-import com.intellij.codeInsight.inline.completion.suggestion.invoke
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -31,6 +32,7 @@ import io.ktor.http.invoke
 
 import com.intellij.openapi.util.Disposer
 import de.fraunhofer.iem.fixmysast.sast.LevelStateService
+import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
@@ -40,6 +42,7 @@ import org.intellij.markdown.ast.ASTNode
 class MyToolWindowFactory : ToolWindowFactory {
     //Helper function for aesthetics
 
+    private lateinit var parsedResult: SASTParsedResult
     // Markdown parser
     fun markdownToHtml(md: String): String {
         val flavour = CommonMarkFlavourDescriptor()
@@ -119,7 +122,7 @@ class MyToolWindowFactory : ToolWindowFactory {
 //        rightPanel.add(levelSelector)
 
         // Load SARIF results from resources
-        val parsedResult = SASTParser.parseSarifFromProject(project)
+        parsedResult = SASTParser.parseSarifFromProject(project)
 
 
         var list = mutableListOf<SASTIssue>()
@@ -142,7 +145,8 @@ class MyToolWindowFactory : ToolWindowFactory {
                 val label = JLabel(value.message)
 
                 //Green if explanation is ready, red otherwise
-                val hasExplanation = parsedResult.llmExplanations.containsKey(value)
+                val lvl = LevelStateService.get().current
+                val hasExplanation = parsedResult.llmExplanations.containsKey(value to lvl)
                 val color = if (hasExplanation) Color(0,128,0) else Color(200,0,0)
 
                 val indicator = object: JComponent() {
@@ -217,23 +221,57 @@ class MyToolWindowFactory : ToolWindowFactory {
     private fun renderExplanation(issue: SASTIssue,
                                   level: ExpertiseLevel,
                                   browser: JBCefBrowser) {
-        // 1) Use cache if we have it
-        val cached = explanationCache[issue to level]
-        val markdown: String = explanationCache[issue to level] ?: run {
-            val fresh = LLMClient.getExplanation(issue,level)
-            if (fresh != null) {
-                explanationCache[issue to level] = fresh
-                fresh
-            } else {
-                "LLM failed to generate an explanation"
-            }
+
+        fun cacheKey() = issue to level
+
+        //Try parsed SARIF Explanations
+        val fromParser = parsedResult.llmExplanations[cacheKey()]
+        if (fromParser != null) {
+            showHtml(fromParser,issue,browser)
+            return
         }
+        //2 look in this-session cache
+        val fromMemory = explanationCache[cacheKey()]
+        if (fromMemory != null)
+        {
+            showHtml(fromMemory,issue,browser)
+            return
+        }
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val fresh = LLMClient.getExplanation(issue,level)
+                ?: "LLM failed to generate an explanation"
 
-        val rawHtml     = markdownToHtml(markdown)
-        val headertag   = issue.tags.firstOrNull() ?: "N/A"
-        val wrappedHtml = wrapHtmlWithStyle(rawHtml, headertag)
+            explanationCache[cacheKey()] = fresh
+            parsedResult.llmExplanations[cacheKey()] = fresh
 
-        SwingUtilities.invokeLater { browser.loadHTML(wrappedHtml) }
+            showHtml(fresh, issue, browser)
+        }
+//        // 1) Use cache if we have it
+//        val cached = explanationCache[issue to level]
+//        val markdown: String = explanationCache[issue to level] ?: run {
+//            val fresh = LLMClient.getExplanation(issue,level)
+//            if (fresh != null) {
+//                explanationCache[issue to level] = fresh
+//                fresh
+//            } else {
+//                "LLM failed to generate an explanation"
+//            }
+//        }
+//
+//        val rawHtml     = markdownToHtml(markdown)
+//        val headertag   = issue.tags.firstOrNull() ?: "N/A"
+//        val wrappedHtml = wrapHtmlWithStyle(rawHtml, headertag)
+//
+//        SwingUtilities.invokeLater { browser.loadHTML(wrappedHtml) }
+    }
+    private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
+        ReadAction.nonBlocking<String> {
+            val rawHtml = markdownToHtml(markdown)
+            val headerTags = issue.tags.firstOrNull() ?: "N/A"
+            wrapHtmlWithStyle(rawHtml, headerTags)
+        }.finishOnUiThread(ModalityState.any()){ html ->
+            browser.loadHTML(html)
+        }.submit(AppExecutorUtil.getAppExecutorService())
     }
 
 }

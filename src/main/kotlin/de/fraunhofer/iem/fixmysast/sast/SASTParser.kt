@@ -51,14 +51,14 @@ data class SASTResult(val groupedIssues: Map<String, List<SASTIssue>>)
 //field to hold LLM responses
 data class SASTParsedResult(
     val groupedIssues: Map<String, List<SASTIssue>>,
-    val llmExplanations: Map<SASTIssue, String>
+    val llmExplanations: MutableMap<Pair<SASTIssue, ExpertiseLevel>, String> = mutableMapOf()
 )
 private val logger = Logger.getInstance("FixMySAST")
 
 object SASTParser {
 //C:\Users\admin\Downloads\BenchmarkJava-master\BenchmarkJava-master\results\Benchmark_1.2-Semgrep-v1.71.0.sarif
     // C:\Users\admin\Downloads\BenchmarkJava-master\results\Benchmark_1.2-Semgrep-v1.71.0.sarif
-    fun parseSarifFromProject(project: Project): de.fraunhofer.iem.fixmysast.sast.SASTParsedResult {
+    fun parseSarifFromProject(project: Project, level:ExpertiseLevel = LevelStateService.get().current): de.fraunhofer.iem.fixmysast.sast.SASTParsedResult {
         val projectPath = project.basePath ?: return fallbackWithLLM(parseSarifFileFromResourceStream(project))
         val sarifFile = File(projectPath, "results" + File.separator + "Benchmark_1.2-Semgrep-v1.123.0_Edited.sarif")
 
@@ -80,23 +80,24 @@ object SASTParser {
                 }
 
                 val grouped = issues.groupBy {it.type}
-                val explanationPipe = ConcurrentHashMap<de.fraunhofer.iem.fixmysast.sast.SASTIssue, String>()
+                val explanationPipe = mutableMapOf<Pair<SASTIssue, ExpertiseLevel>, String>()
 
                 val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
                 val scope = CoroutineScope(dispatcher)
 
                 issues.forEach { issue ->
                     scope.launch {
-                        try {
-                            val res = LLMClient.getExplanation(issue)
-                            explanationPipe[issue] = res?:"LLM failed to generate explanation"
+                        val text = try {
+                            LLMClient.getExplanation(issue, level)
+                                ?:"LLM failed to generate explanation"
                         } catch (e: Exception) {
-                            explanationPipe[issue] = "LLM failed to generate explanation horribly"
+                             "LLM failed to generate explanation horribly"
                         }
+                        explanationPipe[issue to level] = text
                     }
                 }
 
-                SASTParsedResult(grouped, explanationPipe)
+                return SASTParsedResult(grouped, explanationPipe)
             } else {
                 println("SARIF file not found at ${sarifFile.absolutePath}")
                 de.fraunhofer.iem.fixmysast.sast.logger.warn("Sarif file not found at ${sarifFile.absolutePath}")
@@ -145,9 +146,16 @@ object SASTParser {
     }
 
     private fun fallbackWithLLM(fallback: de.fraunhofer.iem.fixmysast.sast.SASTResult): de.fraunhofer.iem.fixmysast.sast.SASTParsedResult {
-        val explanations = fallback.groupedIssues.values.flatten().associateWith { issue ->
-            LLMClient.getExplanation(issue) ?: "LLM failed to generate explanation"
-        }
+        val level = LevelStateService.get().current                 // ← persisted default
+        val explanations = fallback.groupedIssues.values
+            .flatten()
+            .associate { issue ->
+                (issue to level) to
+                        (LLMClient.getExplanation(issue, level)
+                            ?: "LLM failed to generate explanation")
+            }
+            .toMutableMap()
+
         return SASTParsedResult(fallback.groupedIssues, explanations)
     }
 }
