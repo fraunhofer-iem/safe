@@ -115,8 +115,12 @@ class MyToolWindowFactory : ToolWindowFactory {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         rightPanel.add(browser.component)
 
+//        val levelSelector = ComboBox(ExpertiseLevel.values())
+//        rightPanel.add(levelSelector)
+
         // Load SARIF results from resources
         val parsedResult = SASTParser.parseSarifFromProject(project)
+
 
         var list = mutableListOf<SASTIssue>()
 

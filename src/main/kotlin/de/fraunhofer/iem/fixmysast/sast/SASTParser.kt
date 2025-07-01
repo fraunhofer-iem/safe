@@ -59,8 +59,8 @@ object SASTParser {
 //C:\Users\admin\Downloads\BenchmarkJava-master\BenchmarkJava-master\results\Benchmark_1.2-Semgrep-v1.71.0.sarif
     // C:\Users\admin\Downloads\BenchmarkJava-master\results\Benchmark_1.2-Semgrep-v1.71.0.sarif
     fun parseSarifFromProject(project: Project): de.fraunhofer.iem.fixmysast.sast.SASTParsedResult {
-        val projectPath = project.basePath ?: return fallbackWithLLM(parseSarifFileFromResourceStream())
-        val sarifFile = File(projectPath, "BenchmarkJava-master" + File.separator + "results" + File.separator + "Benchmark_1.2-Semgrep-v1.71.0.sarif")
+        val projectPath = project.basePath ?: return fallbackWithLLM(parseSarifFileFromResourceStream(project))
+        val sarifFile = File(projectPath, "results" + File.separator + "Benchmark_1.2-Semgrep-v1.123.0_Edited.sarif")
 
         return try {
             if (sarifFile.exists()) {
@@ -74,7 +74,7 @@ object SASTParser {
                         val type = result.ruleId ?: "Unknown"
                         val message = result.message.text
                         val tags = run.tool.driver.rules?.find { it.id == result.ruleId} ?.properties?.get("tags")?.mapNotNull { it.asText() } ?: emptyList<String>()
-                        val codeSnippet = extractCodeSnippet(result)
+                        val codeSnippet = extractCodeSnippet(project,result)
                         issues.add(SASTIssue(type, message, tags, codeSnippet))
                     }
                 }
@@ -100,18 +100,17 @@ object SASTParser {
             } else {
                 println("SARIF file not found at ${sarifFile.absolutePath}")
                 de.fraunhofer.iem.fixmysast.sast.logger.warn("Sarif file not found at ${sarifFile.absolutePath}")
-                fallbackWithLLM(parseSarifFileFromResourceStream())
+                fallbackWithLLM(parseSarifFileFromResourceStream(project))
             }
         } catch (e: Exception) {
             println("Error parsing SARIF from project: ${e.message}")
             de.fraunhofer.iem.fixmysast.sast.logger.error(e.message)
-            fallbackWithLLM(parseSarifFileFromResourceStream())
+            fallbackWithLLM(parseSarifFileFromResourceStream(project))
         }
     }
 
-    fun parseSarifFileFromResourceStream(fileName: String = "sarif/Benchmark_Edited.sarif"): de.fraunhofer.iem.fixmysast.sast.SASTResult {
-        val inputStream = javaClass.classLoader.getResourceAsStream(fileName)
-            ?: throw IllegalArgumentException("SARIF file $fileName not found in resources")
+    fun parseSarifFileFromResourceStream(project:Project,fileName: String = "/results/Benchmark_1.2-Semgrep-v1.123.0_Edited.sarif"): de.fraunhofer.iem.fixmysast.sast.SASTResult {
+        val inputStream = File(File(project.basePath), "/results/Benchmark_1.2-Semgrep-v1.123.0_Edited.sarif").inputStream()
         val mapper = jacksonObjectMapper()
         val sarifReport: SarifReport = mapper.readValue(inputStream)
         val issues = mutableListOf<de.fraunhofer.iem.fixmysast.sast.SASTIssue>()
@@ -120,21 +119,21 @@ object SASTParser {
                 val type = result.ruleId ?: "Unknown"
                 val message = result.message.text
                 val tags = result.properties?.get("tags")?.mapNotNull {it.asText() } ?: emptyList()
-                val codeSnippet = extractCodeSnippet(result)
+                val codeSnippet = extractCodeSnippet(project,result)
                 issues.add(SASTIssue(type, message, tags, codeSnippet))
             }
         }
         return SASTResult(issues.groupBy { it.type }) }
 
 
-    private fun extractCodeSnippet(result: de.fraunhofer.iem.fixmysast.sast.Result): String {
+    private fun extractCodeSnippet(project: Project, result: de.fraunhofer.iem.fixmysast.sast.Result): String {
+        val projectPath = project.basePath
         val location = result.locations?.firstOrNull()?.physicalLocation
         val uri = location?.artifactLocation?.uri ?: return "No file path"
         val startLine = location.region?.startLine ?: return "No start line"
         val endLine = location.region?.endLine ?: startLine
         //attempt to read source file from resources
-        val inputStream = javaClass.classLoader.getResourceAsStream(uri)
-            ?: return "File not found in resources: $uri"
+        val inputStream = File(File(projectPath), uri).inputStream()
 
         val lines = inputStream.bufferedReader().readLines()
 
@@ -143,7 +142,6 @@ object SASTParser {
         } else {
             "Invalid line range: $startLine to $endLine"
         }
-
     }
 
     private fun fallbackWithLLM(fallback: de.fraunhofer.iem.fixmysast.sast.SASTResult): de.fraunhofer.iem.fixmysast.sast.SASTParsedResult {
