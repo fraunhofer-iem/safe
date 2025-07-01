@@ -55,50 +55,94 @@ class MyToolWindowFactory : ToolWindowFactory {
 
     //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
     //String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
-    private fun wrapHtmlWithStyle(body: String, headertags: String): String {
+    private fun wrapHtmlWithStyle(
+        explanation: String,
+        exampleCodeRaw: String,
+        fixSuggestion: String,
+        headerTags: String,
+        type: String,
+        message: String
+    ): String {
+
+        /* ------------------------------------------------------------------ */
+        /* 1. Turn whatever we got for example code into a proper HTML block  */
+        /* ------------------------------------------------------------------ */
+
+        fun escapeHtml(txt: String) =
+            txt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        val exampleHtml: String = when {
+            exampleCodeRaw.isBlank() -> ""                 // no section at all
+
+            // already an HTML <pre> block  → use as‑is
+            Regex("""<\s*pre""").containsMatchIn(exampleCodeRaw) ->
+                exampleCodeRaw
+
+            // contains ``` fences anywhere → run JUST that snippet through markdown converter
+            exampleCodeRaw.contains("```") ->
+                markdownToHtml(exampleCodeRaw)
+
+            // plain raw code               → escape & wrap ourselves
+            else ->
+                "<pre><code>${escapeHtml(exampleCodeRaw.trim())}</code></pre>"
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* 2. Build the final HTML page                                       */
+        /* ------------------------------------------------------------------ */
+
         return """
-            <html>
-            <head>
-                <style>
-                    body {
-                        font-family: 'Segoe UI', sans-serif;
-                        font-size: 14pt;
-                        line-height: 1.6;
-                        padding: 12px;
-                        color: #2c2c2c;
-                        background-color: #ffffff;
-                        }
-                    h1, h2, h3 {
-                        color: #003366;
-                        margin-top: 1em;
-                        margin-bottom: 0.5em;
-                        }
-                    code, pre {
-                        font-family: 'Courier New', monospace;
-                        background-color: #f4f4f4;
-                        padding: 4px 8px;
-                        border-radius: 6px;
-                        display: block;
-                        white-space: pre-wrap;
-                        }
-                    strong {
-                        font-weight: bold;}
-                    em {
-                        font-style: italic;
-                    }
-                    ul, ol {
-                        padding-left: 20px;
-                        margin-bottom: 10px;
-                    }
-                    </style>
-                </head>
-                <body>
-                    Vulnerability name: $headertags
-                    $body
-                </body>
-                </html>
-        """.trimIndent()
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="color-scheme" content="light"/>
+<style>
+            body        { background:#fff; color:#1c1c1c;
+                          font-family:"Segoe UI",sans-serif;
+                          font-size:14px; line-height:1.6; margin:0; padding:16px; }
+            h1,h2       { color:#003366; font-weight:600; margin:1.0em 0 .6em; }
+            h1          { margin-top:0; font-size:24px; }
+            h2          { font-size:18px; }
+            pre,code    { background:#f5f5f5; font-family:"Courier New",monospace;
+                          padding:4px 8px; border-radius:6px; }
+            pre         { overflow-x:auto; }
+            dl          { margin:0 0 1em; }
+            dt          { font-weight:600; display:inline; }
+            dd          { margin:0 0 .5em .5em; display:inline; }
+</style>
+</head>
+<body>
+<h1>$headerTags</h1>
+ 
+          <dl>
+<dt>Type:</dt><dd>$type</dd>
+<dt>Description:</dt><dd>$message</dd>
+</dl>
+ 
+          <section>
+<h2>Explanation</h2>
+            $explanation
+</section>
+ 
+          ${if (exampleHtml.isNotBlank()) """
+<section>
+<h2>Example&nbsp;Code</h2>
+              $exampleHtml
+</section>""" else ""}
+ 
+          ${if (fixSuggestion.isNotBlank()) """
+<section>
+<h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
+              $fixSuggestion
+</section>""" else ""}
+</body>
+</html>
+    """.trimIndent()
     }
+
+
+
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
 
@@ -266,13 +310,77 @@ class MyToolWindowFactory : ToolWindowFactory {
     }
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
-            val rawHtml = markdownToHtml(markdown)
+            val (explanation, exampleCode, fixSuggestion) = splitSections(markdown)
+            val manualMarkdown = formatSectionsToMarkdown(explanation, exampleCode, fixSuggestion)
+            //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
-            wrapHtmlWithStyle(rawHtml, headerTags)
+            wrapHtmlWithStyle(explanation, exampleCode, fixSuggestion, headerTags, issue.type, issue.message,)
         }.finishOnUiThread(ModalityState.any()){ html ->
             browser.loadHTML(html)
         }.submit(AppExecutorUtil.getAppExecutorService())
     }
+
+    fun splitSections(src: String): Triple<String, String, String> {
+        fun safeIndexOf(haystack: String, needle: String, start: Int = 0): Int =
+            haystack.indexOf(needle, start).takeIf { it >= 0 } ?: -1
+
+        val explStart = safeIndexOf(src, "Explanation").takeIf { it != -1 } ?: 0
+
+        val exampleStart = safeIndexOf(src, "Example Code", explStart)
+        val fixStart = safeIndexOf(src, "CodeFixSuggestion", if (exampleStart != -1) exampleStart else explStart)
+
+        val explanation = when {
+            explStart == -1 -> "" // No Explanation found at all
+            exampleStart != -1 -> src.substring(explStart, exampleStart).trim()
+            fixStart != -1 -> src.substring(explStart, fixStart).trim()
+            else -> src.substring(explStart).trim()
+        }
+
+        val exampleCode = if (exampleStart != -1) {
+            if (fixStart != -1) {
+                src.substring(exampleStart, fixStart).trim()
+            } else {
+                src.substring(exampleStart).trim()
+            }
+        } else {
+            ""
+        }
+
+        val fixSuggestion = if (fixStart != -1) {
+            src.substring(fixStart).trim()
+        } else {
+            ""
+        }
+
+        return Triple(explanation, exampleCode, fixSuggestion)
+    }
+
+    fun formatSectionsToMarkdown(
+        explanation: String,
+        exampleCode: String,
+        fixSuggestion: String
+    ): String {
+        val sb = StringBuilder()
+
+        if (explanation.isNotBlank()) {
+
+            sb.append(explanation.trim()).append("\n\n")
+        }
+
+        if (exampleCode.isNotBlank()) {
+            // Put code snippet inside triple backticks for code block formatting
+            sb.append("```java\n")  // adjust language if not Java
+            sb.append(exampleCode.trim()).append("\n")
+            sb.append("```\n\n")
+        }
+
+        if (fixSuggestion.isNotBlank()) {
+            sb.append(fixSuggestion.trim()).append("\n")
+        }
+
+        return sb.toString()
+    }
+
 
 }
 
