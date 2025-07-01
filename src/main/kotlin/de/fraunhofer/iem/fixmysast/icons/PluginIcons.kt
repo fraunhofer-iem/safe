@@ -5,7 +5,6 @@ import de.fraunhofer.iem.fixmysast.data.Constants
 import javax.swing.Icon
 
 object PluginIcons {
-    val x= Constants.ICON_PATH.format("sou")
     @JvmField
     val SOURCE: Icon = getIcon(Constants.ICON_PATH.format("sou"), javaClass)
     @JvmField
