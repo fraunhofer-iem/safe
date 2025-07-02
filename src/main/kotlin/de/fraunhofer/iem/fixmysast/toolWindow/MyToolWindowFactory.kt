@@ -33,12 +33,15 @@ import io.ktor.http.invoke
 import com.intellij.openapi.util.Disposer
 import de.fraunhofer.iem.fixmysast.sast.LevelStateService
 import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import kotlinx.serialization.decodeFromString
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import org.intellij.markdown.ast.ASTNode
+import org.yaml.snakeyaml.Yaml
+
 class MyToolWindowFactory : ToolWindowFactory {
     //Helper function for aesthetics
 
@@ -66,26 +69,31 @@ class MyToolWindowFactory : ToolWindowFactory {
 
         /* ------------------------------------------------------------------ */
         /* 1. Turn whatever we got for example code into a proper HTML block  */
-        /* ------------------------------------------------------------------ */
+        /* -------------------------------------------fF----------------------- */
 
         fun escapeHtml(txt: String) =
             txt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-        val exampleHtml: String = when {
-            exampleCodeRaw.isBlank() -> ""                 // no section at all
+        fun sendStringtoHtmlFormat(example:String): String {
+            return when {
+                example.isBlank() -> ""                 // no section at all
 
-            // already an HTML <pre> block  → use as‑is
-            Regex("""<\s*pre""").containsMatchIn(exampleCodeRaw) ->
-                exampleCodeRaw
+                // already an HTML <pre> block  → use as‑is
+                Regex("""<\s*pre""").containsMatchIn(example) ->
+                    example
 
-            // contains ``` fences anywhere → run JUST that snippet through markdown converter
-            exampleCodeRaw.contains("```") ->
-                markdownToHtml(exampleCodeRaw)
+                // contains ``` fences anywhere → run JUST that snippet through markdown converter
+                example.contains("```") ->
+                    markdownToHtml(exampleCodeRaw)
 
-            // plain raw code               → escape & wrap ourselves
-            else ->
-                "<pre><code>${escapeHtml(exampleCodeRaw.trim())}</code></pre>"
+                // plain raw code               → escape & wrap ourselves
+                else ->
+                    "<pre><code>${escapeHtml(example.trim())}</code></pre>"
+            }
         }
+
+        val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw)
+        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion)
 
         /* ------------------------------------------------------------------ */
         /* 2. Build the final HTML page                                       */
@@ -116,7 +124,7 @@ class MyToolWindowFactory : ToolWindowFactory {
 <h1>$headerTags</h1>
  
           <dl>
-<dt>Type:</dt><dd>$type</dd>
+<dt>Type:</dt><dd>$type</dd> <br />
 <dt>Description:</dt><dd>$message</dd>
 </dl>
  
@@ -290,23 +298,7 @@ class MyToolWindowFactory : ToolWindowFactory {
 
             showHtml(fresh, issue, browser)
         }
-//        // 1) Use cache if we have it
-//        val cached = explanationCache[issue to level]
-//        val markdown: String = explanationCache[issue to level] ?: run {
-//            val fresh = LLMClient.getExplanation(issue,level)
-//            if (fresh != null) {
-//                explanationCache[issue to level] = fresh
-//                fresh
-//            } else {
-//                "LLM failed to generate an explanation"
-//            }
-//        }
-//
-//        val rawHtml     = markdownToHtml(markdown)
-//        val headertag   = issue.tags.firstOrNull() ?: "N/A"
-//        val wrappedHtml = wrapHtmlWithStyle(rawHtml, headertag)
-//
-//        SwingUtilities.invokeLater { browser.loadHTML(wrappedHtml) }
+
     }
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
@@ -321,37 +313,42 @@ class MyToolWindowFactory : ToolWindowFactory {
     }
 
     fun splitSections(src: String): Triple<String, String, String> {
-        fun safeIndexOf(haystack: String, needle: String, start: Int = 0): Int =
-            haystack.indexOf(needle, start).takeIf { it >= 0 } ?: -1
+        /** Return the index just after a header line that starts a new section. */
+        fun findContentStart(text: String, keyword: String, from: Int = 0): Int {
+            //   (?im)  → multiline, case‑insensitive
+            //   ^\s*   → start of line, optional spaces
+            //   keyword\s*:? → the actual header, optional spaces and colon
+            val headerRe = Regex("(?im)^\\s*${Regex.escape(keyword)}\\s*:?", RegexOption.MULTILINE)
+            val m = headerRe.find(text, from) ?: return -1
+            var idx = m.range.last + 1                 // first char right after header
+            while (idx < text.length && text[idx].isWhitespace()) idx++   // skip blank line
+            return idx
+        }
 
-        val explStart = safeIndexOf(src, "Explanation").takeIf { it != -1 } ?: 0
+        val explStart    = findContentStart(src, "Explanation").takeIf { it != -1 } ?: 0
+        val exampleStart = findContentStart(src, "Example code", explStart)
+        val fixStart     = findContentStart(src, "CodeFixSuggestion",
+            if (exampleStart != -1) exampleStart else explStart)
 
-        val exampleStart = safeIndexOf(src, "Example Code", explStart)
-        val fixStart = safeIndexOf(src, "CodeFixSuggestion", if (exampleStart != -1) exampleStart else explStart)
-
+        /* -------- slice the payloads (headers already excluded) -------- */
         val explanation = when {
-            explStart == -1 -> "" // No Explanation found at all
-            exampleStart != -1 -> src.substring(explStart, exampleStart).trim()
-            fixStart != -1 -> src.substring(explStart, fixStart).trim()
-            else -> src.substring(explStart).trim()
+            explStart == -1 -> ""
+            exampleStart != -1 -> src.substring(explStart, exampleStart-15).trim()
+            fixStart     != -1 -> src.substring(explStart, fixStart-20).trim()
+            else                -> src.substring(explStart).trim()
         }
 
         val exampleCode = if (exampleStart != -1) {
-            if (fixStart != -1) {
-                src.substring(exampleStart, fixStart).trim()
-            } else {
-                src.substring(exampleStart).trim()
-            }
-        } else {
-            ""
-        }
+            if (fixStart != -1) src.substring(exampleStart, fixStart-20).trim()
+            else                src.substring(exampleStart).trim()
+        } else ""
 
         val fixSuggestion = if (fixStart != -1) {
             src.substring(fixStart).trim()
-        } else {
-            ""
-        }
-
+        } else ""
+        println(explanation)
+        println(exampleCode)
+        println(fixSuggestion)
         return Triple(explanation, exampleCode, fixSuggestion)
     }
 
@@ -375,12 +372,14 @@ class MyToolWindowFactory : ToolWindowFactory {
         }
 
         if (fixSuggestion.isNotBlank()) {
+            // Put code snippet inside triple backticks for code block formatting
+            sb.append("```java\n")  // adjust language if not Java
             sb.append(fixSuggestion.trim()).append("\n")
+            sb.append("```\n\n")
         }
 
         return sb.toString()
     }
-
 
 }
 

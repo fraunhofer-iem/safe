@@ -181,11 +181,14 @@ object LLMClient {
                 You are an expert in software security. Explain the given error from the static analysis tool to a novice software developer in a way that helps them understand the security issue.
                  
                 ---
-                Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value. Start of each section with the keywords "Beginner Explanation", "Beginner Example", "Beginner CodeFixSuggestion".
+                Follow the output format strictly.
+                The explanation must not exceed 500 words. 
+                Provide the explanation as a basic string value. 
+                Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
                  
-                - Beginner Explanation: <explanation of the given error>
-                - Beginner Example code: <simple code snippet illustrating the issue>
-                - Beginner CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                Explanation: <explanation of the given error>
+                Example code: <simple code snippet illustrating the issue>
+                CodeFixSuggestion: <code fix suggestion to resolve the given error>
                 ---
                 
                                  
@@ -205,11 +208,11 @@ object LLMClient {
             You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an intermediate-level developer. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
  
             ---
-            Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value.
+            Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value. Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
              
-            - INTERMEDIATE Explanation: <concise technical explanation of the given error>
-            - INTERMEDIATE Example code: <representative code snippet illustrating the issue>
-            - INTERMEDIATE CodeFixSuggestion: <code fix suggestion to resolve the given error>
+            Explanation: <concise technical explanation of the given error>
+            Example code: <representative code snippet illustrating the issue>
+            CodeFixSuggestion: <code fix suggestion to resolve the given error>
             ---
              
             Below is the information provided by the static analysis tool:
@@ -238,10 +241,10 @@ object LLMClient {
             You are an expert in software security. Explain the given error from the static analysis tool to an advanced-level developer in a way that helps them understand the security issue.
  
                 ---
-                Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value.
+                Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value. Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
                  
-                - ADVANCED Explanation: <concise technical explanation of the given error>
-                - ADVANCED CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                Explanation: <concise technical explanation of the given error>
+                CodeFixSuggestion: <code fix suggestion to resolve the given error>
                 ---
                  
                  

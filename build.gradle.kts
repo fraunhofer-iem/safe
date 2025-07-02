@@ -27,6 +27,8 @@ dependencies {
 
         // Add necessary plugin dependencies for compilation here, example:
          bundledPlugin("com.intellij.java")
+        // https://mvnrepository.com/artifact/com.charleskorn.kaml/kaml
+        implementation("org.yaml:snakeyaml:2.0")
     }
 
    // implementation("org.intellij.markdown:markdown:0.5.0")
