@@ -30,11 +30,8 @@ object LLMClient {
             val connection = URL(apiUrl).openConnection() as HttpURLConnection
 
             connection.requestMethod = "POST"
-
             connection.setRequestProperty("api-key", API_KEY)
-
             connection.setRequestProperty("Content-Type", "application/json")
-
             connection.doOutput = true
 
 //            val requestBody = """
