@@ -305,18 +305,18 @@ class MyToolWindowFactory : ToolWindowFactory {
     //Instruct chat respones to produce YAML
     //parse YAML for proper vars
     //wrap YAML recieved elements with HTML code
-//    private fun getSectionsFromYaml(response: String): Triple<String,String,String> {
-//        val yaml = Yaml()
-//        val data = yaml.parse(response)
-//        val explanationSection = data['Explanation']
-//        val exampleSection = data['exampleSection']
-//        val codeSection = data['codeSection']
-//        return Triple(explanationSection, exampleSection, codeSection)
-//    }
+    private fun getSectionsFromYaml(response: String): Triple<String, String, String> {
+        val yaml = Yaml()
+        val data = yaml.load<Map<String, Any>>(response)
+        val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
+        val exampleSection = data["Example Code"] as? String ?: " "
+        val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
+        return Triple(explanationSection, exampleSection, codeSection)
+    }
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
-            val (explanation, exampleCode, fixSuggestion) = splitSections(markdown)
-            val manualMarkdown = formatSectionsToMarkdown(explanation, exampleCode, fixSuggestion)
+            val (explanation, exampleCode, fixSuggestion) = getSectionsFromYaml(markdown)
+
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
             wrapHtmlWithStyle(explanation, exampleCode, fixSuggestion, headerTags, issue.type, issue.message,)
@@ -381,35 +381,8 @@ class MyToolWindowFactory : ToolWindowFactory {
         return Triple(explanation, exampleCode, fixSuggestion)
     }
 
-    fun formatSectionsToMarkdown(
-        explanation: String,
-        exampleCode: String,
-        fixSuggestion: String
-    ): String {
-        val sb = StringBuilder()
-
-        if (explanation.isNotBlank()) {
-
-            sb.append(explanation.trim()).append("\n\n")
-        }
-
-        if (exampleCode.isNotBlank()) {
-            // Put code snippet inside triple backticks for code block formatting
-            sb.append("```java\n")  // adjust language if not Java
-            sb.append(exampleCode.trim()).append("\n")
-            sb.append("```\n\n")
-        }
-
-        if (fixSuggestion.isNotBlank()) {
-            // Put code snippet inside triple backticks for code block formatting
-            sb.append("```java\n")  // adjust language if not Java
-            sb.append(fixSuggestion.trim()).append("\n")
-            sb.append("```\n\n")
-        }
-
-        return sb.toString()
-    }
 
 }
+
 
 

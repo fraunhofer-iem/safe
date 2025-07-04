@@ -148,31 +148,6 @@ object LLMClient {
         """.trimIndent()
     }
 
-//
-//    private fun markdownByHand(issue:SASTIssue, LLMResponse): String {
-//    return """
-//
-//
-//
-//
-//        ___
-//
-//
-//
-//        ### **1. Overview and Description**
-//        -Original Message:
-//                - Type: **${issue.type}**
-//                - Description "${issue.message}"?
-//                - Tag: ${issue.tags[0]}
-//        -Explananation: $LLMResponse.description
-//
-//
-//        ___
-//
-//        ### **2. Suggested Code Fix.**
-//        ${LLMResponse.code}
-//    """.trimIndent()
-//    }
     /**
      * Different prompt templates for each expertise level.
      */
@@ -184,13 +159,27 @@ object LLMClient {
                 Follow the output format strictly.
                 The explanation must not exceed 500 words. 
                 Provide the explanation as a basic string value. 
-                Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
+                Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
+                Your response must be a YAML formatted document with these top-level keys:
                  
-                Explanation: <explanation of the given error>
-                Example code: <simple code snippet illustrating the issue>
-                CodeFixSuggestion: <code fix suggestion to resolve the given error>
-                CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
+                Explanation: explanation of the given error
+                Example code: simple code snippet illustrating the issue
+                CodeFixSuggestion: code fix suggestion to resolve the given error
+                
                 ---
+                
+                Here is an example of the correct output:
+                
+                Explanation: "explanation of the given error."
+                Example Code: |
+                  @SuppressWarnings("unused")
+                  public void exampleMethod() {
+                      System.out.println("Hello, world!");
+                  }
+                CodeFixSuggestion: "code fix suggestion to resolve the given error."
+                 
+                ---
+                Below is the information provided by the static analysis tool:
                 
                                  
                 Error Type:
@@ -209,13 +198,25 @@ object LLMClient {
             You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an intermediate-level developer. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
  
             ---
-            Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value. Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
+            Follow the output format strictly.
+            The explanation must not exceed 500 words.
+            Provide the explanation as a basic string value.
+            Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
+            Your response must be a YAML formatted document with these top-level keys:
              
-            Explanation: <concise technical explanation of the given error>
-            Example code: <representative code snippet illustrating the issue>
-            CodeFixSuggestion: <code fix suggestion to resolve the given error>
-            CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
+            Explanation: concise technical explanation of the given error
+            Example code: representative code snippet illustrating the issue
+            CodeFixSuggestion: code fix suggestion to resolve the given error
             ---
+                Here is an example of the correct output:
+                
+                Explanation: "explanation of the given error."
+                Example Code: |
+                  @SuppressWarnings("unused")
+                  public void exampleMethod() {
+                      System.out.println("Hello, world!");
+                  }
+                CodeFixSuggestion: "code fix suggestion to resolve the given error."
              
             Below is the information provided by the static analysis tool:
              
@@ -243,12 +244,24 @@ object LLMClient {
             You are an expert in software security. Explain the given error from the static analysis tool to an advanced-level developer in a way that helps them understand the security issue.
  
                 ---
-                Follow the output format strictly. The explanation must not exceed 500 words. Provide the explanation as a basic string value. Do not add any other unique characters to the block section, ie: triple backticks or triple quotes.
+                Follow the output format strictly.
+                The explanation must not exceed 500 words.
+                Provide the explanation as a basic string value.
+                Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
+                Your response must be a YAML formatted document with these top-level keys:
                  
-                Explanation: <concise technical explanation of the given error>
-                CodeFixSuggestion: <code fix suggestion to resolve the given error>
-                CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
+                Explanation: concise technical explanation of the given error
+                CodeFixSuggestion: code fix suggestion to resolve the given error
                 ---
+                Here is an example of the correct output:
+                
+                Explanation: "explanation of the given error."
+                Example Code: |
+                  @SuppressWarnings("unused")
+                  public void exampleMethod() {
+                      System.out.println("Hello, world!");
+                  }
+                CodeFixSuggestion: "code fix suggestion to resolve the given error."
                  
                  
                 Below is the information provided by the static analysis tool:
