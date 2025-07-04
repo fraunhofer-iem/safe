@@ -189,6 +189,7 @@ object LLMClient {
                 Explanation: <explanation of the given error>
                 Example code: <simple code snippet illustrating the issue>
                 CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
                 ---
                 
                                  
@@ -213,6 +214,7 @@ object LLMClient {
             Explanation: <concise technical explanation of the given error>
             Example code: <representative code snippet illustrating the issue>
             CodeFixSuggestion: <code fix suggestion to resolve the given error>
+            CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
             ---
              
             Below is the information provided by the static analysis tool:
@@ -245,6 +247,7 @@ object LLMClient {
                  
                 Explanation: <concise technical explanation of the given error>
                 CodeFixSuggestion: <code fix suggestion to resolve the given error>
+                CodeFixSuggestionExplanation: <explanation of the code fix suggestion to resolve the given error>
                 ---
                  
                  

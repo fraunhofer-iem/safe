@@ -33,6 +33,7 @@ import io.ktor.http.invoke
 import com.intellij.openapi.util.Disposer
 import de.fraunhofer.iem.fixmysast.sast.LevelStateService
 import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import io.ktor.http.cio.Response
 import kotlinx.serialization.decodeFromString
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
@@ -300,6 +301,18 @@ class MyToolWindowFactory : ToolWindowFactory {
         }
 
     }
+
+    //Instruct chat respones to produce YAML
+    //parse YAML for proper vars
+    //wrap YAML recieved elements with HTML code
+//    private fun getSectionsFromYaml(response: String): Triple<String,String,String> {
+//        val yaml = Yaml()
+//        val data = yaml.parse(response)
+//        val explanationSection = data['Explanation']
+//        val exampleSection = data['exampleSection']
+//        val codeSection = data['codeSection']
+//        return Triple(explanationSection, exampleSection, codeSection)
+//    }
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
             val (explanation, exampleCode, fixSuggestion) = splitSections(markdown)
@@ -325,21 +338,37 @@ class MyToolWindowFactory : ToolWindowFactory {
             return idx
         }
 
+        fun findContentEnd(text: String, keyword: String, from: Int = 0): Int {
+            //   (?im)  → multiline, case‑insensitive
+            //   ^\s*   → start of line, optional spaces
+            //   keyword\s*:? → the actual header, optional spaces and colon
+            val headerRe = Regex("(?im)^\\s*${Regex.escape(keyword)}\\s*:?", RegexOption.MULTILINE)
+            val m = headerRe.find(text, from) ?: return -1
+            var idx = m.range.first - 1                 // first char right after header
+            // TODO> below carefuly debug
+            while (idx > 0 && text[idx].isWhitespace()) idx--   // skip blank line
+            return idx
+        }
+
         val explStart    = findContentStart(src, "Explanation").takeIf { it != -1 } ?: 0
         val exampleStart = findContentStart(src, "Example code", explStart)
+        //val explCodeStart = findContentStart(src,)
+
+        val explEnd    = findContentEnd(src, "Example code").takeIf { it != -1 } ?: 0
+        val exampleEnd = findContentEnd(src, "CodeFixSuggestion", explEnd)
         val fixStart     = findContentStart(src, "CodeFixSuggestion",
             if (exampleStart != -1) exampleStart else explStart)
 
         /* -------- slice the payloads (headers already excluded) -------- */
         val explanation = when {
             explStart == -1 -> ""
-            exampleStart != -1 -> src.substring(explStart, exampleStart-15).trim()
-            fixStart     != -1 -> src.substring(explStart, fixStart-20).trim()
+            exampleStart != -1 -> src.substring(explStart, explEnd + 1).trim()
+            fixStart     != -1 -> src.substring(explStart, exampleEnd + 1).trim()
             else                -> src.substring(explStart).trim()
         }
 
         val exampleCode = if (exampleStart != -1) {
-            if (fixStart != -1) src.substring(exampleStart, fixStart-20).trim()
+            if (fixStart != -1) src.substring(exampleStart, exampleEnd + 1).trim()
             else                src.substring(exampleStart).trim()
         } else ""
 
