@@ -7,6 +7,10 @@ import java.io.File
 import com.intellij.openapi.diagnostic.Logger
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.JsonNode
+import de.fraunhofer.iem.fixmysast.llmService.LLMClient
+import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
+import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
@@ -52,10 +56,6 @@ data class Region(val startLine: Int?, val endLine: Int?)
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Rule(val id: String?, val properties: JsonNode? = null)
-
-//Output models
-data class SASTIssue(val type: String, val message: String, val tags: List<String>, val codeSnippet: String)
-data class SASTResult(val groupedIssues: Map<String, List<SASTIssue>>)
 
 //field to hold LLM responses
 data class SASTParsedResult(

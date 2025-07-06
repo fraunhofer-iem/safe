@@ -8,10 +8,10 @@ import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.LlmApiNotifier
-import de.fraunhofer.iem.fixmysast.sast.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.LLMClient
-import de.fraunhofer.iem.fixmysast.sast.SASTIssue
+import de.fraunhofer.iem.fixmysast.llmService.LLMClient
 import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator

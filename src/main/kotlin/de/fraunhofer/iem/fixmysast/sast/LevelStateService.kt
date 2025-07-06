@@ -4,6 +4,7 @@ import com.intellij.openapi.components.Service.Level.APP
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.ide.util.PropertiesComponent
+import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
 
 @Service(Service.Level.APP)
 @State(

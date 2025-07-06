@@ -1,9 +1,9 @@
 package de.fraunhofer.iem.fixmysast.comm
 
 import com.intellij.util.messages.Topic
-import de.fraunhofer.iem.fixmysast.sast.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.SASTIssue
 import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
 
 interface LlmApiNotifier {
 
