@@ -221,8 +221,8 @@ class ExplanationPanel(project: Project) : JPanel() {
             }
         }
 
-        val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw)
-        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion)
+        val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
+        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
 
         /* ------------------------------------------------------------------ */
         /* 2. Build the final HTML page                                       */
