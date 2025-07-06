@@ -16,6 +16,7 @@ import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
+import org.yaml.snakeyaml.Yaml
 import javax.swing.JPanel
 
 //Helper function for aesthetics
@@ -157,9 +158,6 @@ class ExplanationPanel(project: Project) : JPanel() {
         println(fixSuggestion)
         return Triple(explanation, exampleCode, fixSuggestion)
     }
-
-
-}
 
     private lateinit var parsedResult: SASTParsedResult
     // Markdown parser
