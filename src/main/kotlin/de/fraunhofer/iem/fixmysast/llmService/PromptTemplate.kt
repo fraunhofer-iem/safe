@@ -59,10 +59,14 @@ object PromptTemplate {
                 ${issue.message}
                 ```
                  
-                Error Tag:
-                ```
-                ${issue.tags[0]}
-                ```
+                ${
+                    if (issue.tags.isNotEmpty()) """
+                        |Error Tag:
+                        |```
+                        |${issue.tags[0]}
+                        |```
+                    """.trimMargin() else ""
+                }
                  
                 Replace this with a secure code fix:
                 ```
@@ -120,10 +124,14 @@ object PromptTemplate {
             ${issue.message}
             ```
              
-            Error Tag:
-            ```
-            ${issue.tags[0]}
-            ```
+            ${
+                if (issue.tags.isNotEmpty()) """
+                    |Error Tag:
+                    |```
+                    |${issue.tags[0]}
+                    |```
+                """.trimMargin() else ""
+            }
              
             Replace this with a secure code fix:
             ```
@@ -172,10 +180,14 @@ object PromptTemplate {
                 ${issue.message}
                 ```
                  
-                Error Tag:
-                ```
-                ${issue.tags[0]}
-                ```
+                ${
+                    if (issue.tags.isNotEmpty()) """
+                        |Error Tag:
+                        |```
+                        |${issue.tags[0]}
+                        |```
+                    """.trimMargin() else ""
+                }
                  
                 Replace this with a secure code fix:
                 ```
