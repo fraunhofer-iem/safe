@@ -8,10 +8,10 @@ import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.LlmApiNotifier
-import de.fraunhofer.iem.fixmysast.sast.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.LLMClient
-import de.fraunhofer.iem.fixmysast.sast.SASTIssue
+import de.fraunhofer.iem.fixmysast.llmService.LLMClient
 import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
@@ -83,21 +83,34 @@ class ExplanationPanel(project: Project) : JPanel() {
     //Instruct chat respones to produce YAML
     //parse YAML for proper vars
     //wrap YAML recieved elements with HTML code
-    private fun getSectionsFromYaml(response: String): Triple<String, String, String> {
+    private fun getSectionsFromYaml(response: String): ExplanationModel {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
-        val exampleSection = data["Example Code"] as? String ?: " "
+        val exampleSection = data["ExampleCode"] as? String ?: " "
+        val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
         val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
-        return Triple(explanationSection, exampleSection, codeSection)
+        val codeSectionExplanation = data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
+        return ExplanationModel(explanationSection, exampleSection.trimStart(), exampleCodeExplanation, codeSection.trimStart(), codeSectionExplanation)
     }
+
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
-            val (explanation, exampleCode, fixSuggestion) = getSectionsFromYaml(markdown)
+            val (explanation, exampleCode, exampleCodeExplanation, fixSuggestion, fixSuggestionExplanation) = getSectionsFromYaml(markdown)
 
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
-            wrapHtmlWithStyle(explanation, exampleCode, fixSuggestion, headerTags, issue.type, issue.message,)
+            val temp = wrapHtmlWithStyle(
+                explanation,
+                exampleCode,
+                exampleCodeExplanation,
+                fixSuggestion,
+                fixSuggestionExplanation,
+                headerTags,
+                issue.type,
+                issue.message
+            )
+            temp
         }.finishOnUiThread(ModalityState.any()){ html ->
             browser.loadHTML(html)
         }.submit(AppExecutorUtil.getAppExecutorService())
@@ -175,7 +188,9 @@ class ExplanationPanel(project: Project) : JPanel() {
     private fun wrapHtmlWithStyle(
         explanation: String,
         exampleCodeRaw: String,
+        exampleCodeExplanation: String,
         fixSuggestion: String,
+        fixSuggestionExplanation: String,
         headerTags: String,
         type: String,
         message: String
@@ -202,12 +217,12 @@ class ExplanationPanel(project: Project) : JPanel() {
 
                 // plain raw code               → escape & wrap ourselves
                 else ->
-                    "<pre><code>${escapeHtml(example.trim())}</code></pre>"
+                    """<pre><code class="language-java">${escapeHtml(example.trim().trimStart())}</code></pre>""".trimIndent()
             }
         }
 
-        val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw)
-        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion)
+        val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
+        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
 
         /* ------------------------------------------------------------------ */
         /* 2. Build the final HTML page                                       */
@@ -226,7 +241,7 @@ class ExplanationPanel(project: Project) : JPanel() {
             h1,h2       { color:#003366; font-weight:600; margin:1.0em 0 .6em; }
             h1          { margin-top:0; font-size:24px; }
             h2          { font-size:18px; }
-            pre,code    { background:#f5f5f5; font-family:"Courier New",monospace;
+            pre,code    { display: block; background:#f5f5f5; font-family:"Courier New",monospace;
                           padding:4px 8px; border-radius:6px; }
             pre         { overflow-x:auto; }
             dl          { margin:0 0 1em; }
@@ -236,7 +251,9 @@ class ExplanationPanel(project: Project) : JPanel() {
 </head>
 <body>
 <h1>$headerTags</h1>
- 
+<hr style="border: none; height: 1px; background-color: #003366;">
+
+<h2>Information provided by the SAST</h2>
           <dl>
 <dt>Type:</dt><dd>$type</dd> <br />
 <dt>Description:</dt><dd>$message</dd>
@@ -250,13 +267,15 @@ class ExplanationPanel(project: Project) : JPanel() {
           ${if (exampleHtml.isNotBlank()) """
 <section>
 <h2>Example&nbsp;Code</h2>
+              $exampleCodeExplanation
               $exampleHtml
 </section>""" else ""}
  
           ${if (fixSuggestion.isNotBlank()) """
 <section>
 <h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
-              $fixSuggestion
+$fixSuggestionExplanation
+$fixSuggestion
 </section>""" else ""}
 </body>
 </html>
