@@ -3,6 +3,12 @@ package de.fraunhofer.iem.fixmysast.llmService
 import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
 import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
 
+/**
+ * Prompt templates for the explanation of the SAST issue and provides the prompts based on the developers expertise level.
+ *
+ * @author Alexandra Fomina
+ * @author Ranjith
+ */
 object PromptTemplate {
     fun build(issue: SASTIssue, level: ExpertiseLevel): String = when (level) {
         ExpertiseLevel.BEGINNER -> buildBeginnerPrompt(issue)

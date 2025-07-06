@@ -15,6 +15,14 @@ import javax.swing.BoxLayout
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 
+/**
+ * Entry method to the FixMySast intellIJ plugin.
+ * The main layout of FixMySast plugin is defined in this class.
+ *
+ * ✨To infinity... and beyond...✨
+ *             - Buzz Lightyear
+ *             - Toy story
+ */
 class ExplanationToolWindow : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {

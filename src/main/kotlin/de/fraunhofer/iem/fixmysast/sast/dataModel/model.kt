@@ -1,5 +1,10 @@
 package de.fraunhofer.iem.fixmysast.sast.dataModel
 
+/**
+ * Data classes for the SAST issues, results, and expertise level
+ *
+ * @author Alexandra Fomina
+ */
 data class SASTIssue(
     val type: String,
     val message: String,
