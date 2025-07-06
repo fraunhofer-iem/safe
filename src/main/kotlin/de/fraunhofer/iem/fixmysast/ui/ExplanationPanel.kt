@@ -241,7 +241,7 @@ class ExplanationPanel(project: Project) : JPanel() {
             h1,h2       { color:#003366; font-weight:600; margin:1.0em 0 .6em; }
             h1          { margin-top:0; font-size:24px; }
             h2          { font-size:18px; }
-            pre,code    { background:#f5f5f5; font-family:"Courier New",monospace;
+            pre,code    { display: block; background:#f5f5f5; font-family:"Courier New",monospace;
                           padding:4px 8px; border-radius:6px; }
             pre         { overflow-x:auto; }
             dl          { margin:0 0 1em; }
