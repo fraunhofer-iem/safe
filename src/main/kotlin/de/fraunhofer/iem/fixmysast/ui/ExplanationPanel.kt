@@ -83,21 +83,34 @@ class ExplanationPanel(project: Project) : JPanel() {
     //Instruct chat respones to produce YAML
     //parse YAML for proper vars
     //wrap YAML recieved elements with HTML code
-    private fun getSectionsFromYaml(response: String): Triple<String, String, String> {
+    private fun getSectionsFromYaml(response: String): ExplanationModel {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
-        val exampleSection = data["Example Code"] as? String ?: " "
+        val exampleSection = data["ExampleCode"] as? String ?: " "
+        val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
         val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
-        return Triple(explanationSection, exampleSection, codeSection)
+        val codeSectionExplanation = data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
+        return ExplanationModel(explanationSection, exampleSection.trimStart(), exampleCodeExplanation, codeSection.trimStart(), codeSectionExplanation)
     }
+
     private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
         ReadAction.nonBlocking<String> {
-            val (explanation, exampleCode, fixSuggestion) = getSectionsFromYaml(markdown)
+            val (explanation, exampleCode, exampleCodeExplanation, fixSuggestion, fixSuggestionExplanation) = getSectionsFromYaml(markdown)
 
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
-            wrapHtmlWithStyle(explanation, exampleCode, fixSuggestion, headerTags, issue.type, issue.message,)
+            val temp = wrapHtmlWithStyle(
+                explanation,
+                exampleCode,
+                exampleCodeExplanation,
+                fixSuggestion,
+                fixSuggestionExplanation,
+                headerTags,
+                issue.type,
+                issue.message
+            )
+            temp
         }.finishOnUiThread(ModalityState.any()){ html ->
             browser.loadHTML(html)
         }.submit(AppExecutorUtil.getAppExecutorService())
@@ -175,7 +188,9 @@ class ExplanationPanel(project: Project) : JPanel() {
     private fun wrapHtmlWithStyle(
         explanation: String,
         exampleCodeRaw: String,
+        exampleCodeExplanation: String,
         fixSuggestion: String,
+        fixSuggestionExplanation: String,
         headerTags: String,
         type: String,
         message: String
@@ -250,13 +265,15 @@ class ExplanationPanel(project: Project) : JPanel() {
           ${if (exampleHtml.isNotBlank()) """
 <section>
 <h2>Example&nbsp;Code</h2>
+              $exampleCodeExplanation
               $exampleHtml
 </section>""" else ""}
  
           ${if (fixSuggestion.isNotBlank()) """
 <section>
 <h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
-              $fixSuggestion
+$fixSuggestionExplanation
+$fixSuggestion
 </section>""" else ""}
 </body>
 </html>
