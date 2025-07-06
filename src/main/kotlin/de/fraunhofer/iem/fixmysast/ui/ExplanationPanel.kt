@@ -251,7 +251,9 @@ class ExplanationPanel(project: Project) : JPanel() {
 </head>
 <body>
 <h1>$headerTags</h1>
- 
+<hr style="border: none; height: 1px; background-color: #003366;">
+
+<h2>Information provided by the SAST</h2>
           <dl>
 <dt>Type:</dt><dd>$type</dd> <br />
 <dt>Description:</dt><dd>$message</dd>
