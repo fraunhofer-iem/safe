@@ -21,7 +21,7 @@
         <!-- Tool-window registration -->
         <toolWindow
                 id="MyToolWindow"
-                factoryClass="de.fraunhofer.iem.fixmysast.toolWindow.MyToolWindowFactory"
+                factoryClass="de.fraunhofer.iem.fixmysast.ExplanationToolWindow"
                 anchor="right"
                 secondary="false"/>
 
