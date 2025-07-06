@@ -217,7 +217,7 @@ class ExplanationPanel(project: Project) : JPanel() {
 
                 // plain raw code               → escape & wrap ourselves
                 else ->
-                    "<pre><code>${escapeHtml(example.trim())}</code></pre>"
+                    """<pre><code class="language-java">${escapeHtml(example.trim().trimStart())}</code></pre>""".trimIndent()
             }
         }
 
