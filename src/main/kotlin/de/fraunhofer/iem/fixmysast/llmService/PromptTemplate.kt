@@ -25,8 +25,8 @@ object PromptTemplate {
                 - The explanation must not exceed 500 words. 
                 - Provide the explanation as a basic string value. 
                 - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
-                - You're CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
-                - For the CodeFixSuggestion, add only the fix suggestion to the original code that contains the issue found by the static analysis tool. You must keep the original code that supposed to remain in the fix and remove from the original code if it supposed to be removed for the fix. Please do not add any other code statements that are not part of the fix. Please do not add any code statements to complete the code to look like a complete method. 
+                - Your CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
+                - For the CodeFixSuggestion, add only the fix suggestion to the original code that contains the issue found by the static analysis tool. You must keep the original code that is supposed to remain in the fix and remove from the original code if it supposed to be removed for the fix. Please do not add any other code statements that are not part of the fix. Please do not add any code statements to complete the code to look like a complete method. 
                 - While suggesting the code fix in CodeFixSuggestion, if you suggest any sanitizer, input validator, etc. please suggest the valid sanitizer or input validator from the trusted library. DO NO SUGGEST CUSTOM SANITIZER OR INPUT VALIDATOR.
                 Your response must be a YAML formatted document with these top-level keys:
                  
@@ -92,7 +92,7 @@ object PromptTemplate {
             - The explanation must not exceed 500 words.
             - Provide the explanation as a basic string value.
             - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
-            - You're CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
+            - Your CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
             - For the CodeFixSuggestion, do not add statement to complete the code to look like a complete method. Add only the fix suggestion to the original code that contains the issue found by the static analysis tool.
             - While suggesting the code fix in CodeFixSuggestion, if you suggest any sanitizer, input validator, etc. please suggest the valid sanitizer or input validator from the trusted library. DO NO SUGGEST CUSTOM SANITIZER OR INPUT VALIDATOR.
             
@@ -165,7 +165,7 @@ object PromptTemplate {
                 Your response must be a YAML formatted document with these top-level keys:
                  
                 Explanation: explanation of the given error
-                CodeFixSuggestion: code fix suggestion to resolve the given error. This code must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you. Do not halli
+                CodeFixSuggestion: code fix suggestion to resolve the given error. This code must be the code fix to the original code that contains the issue found by the static analysis tool.
                 CodeFixSuggestionExplanation: explanation of the provided code fix suggestion
                 
                 ---
