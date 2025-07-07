@@ -19,7 +19,7 @@ object LLMClient {
     fun getExplanation(issue: SASTIssue, level: ExpertiseLevel = ExpertiseLevel.INTERMEDIATE): String? {
         val prompt = PromptTemplate.build(issue, level)
         val requestBody = buildRequestBody(prompt)
-        val llmConfig = getLLMConfig(true)
+        val llmConfig = getLLMConfig()
 
         return try {
             val response = HttpService.postJson(llmConfig.apiURL, llmConfig.apiKey, requestBody)

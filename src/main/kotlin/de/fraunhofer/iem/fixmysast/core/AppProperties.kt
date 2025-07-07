@@ -20,4 +20,10 @@ object AppProperties {
     fun get(key: String): String? = props.getProperty(key)
 
     val apiKey: String? get() = props.getProperty("api.key")
+
+    val openaiApiUrl: String? get() = props.getProperty("openai.api.url")
+
+    val olamaApiUrl: String? get() = props.getProperty("olama.api.url")
+
+    val llmModel: String get() = props.getProperty("llm.model")
 }

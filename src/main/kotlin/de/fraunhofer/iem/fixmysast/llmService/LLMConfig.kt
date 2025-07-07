@@ -1,6 +1,7 @@
 package de.fraunhofer.iem.fixmysast.llmService
 
 import de.fraunhofer.iem.fixmysast.core.AppProperties
+import java.util.*
 
 /**
  * Configuration for LLM
@@ -16,20 +17,20 @@ interface LLMConfig {
 }
 
 object OpenAiLLMConfig : LLMConfig {
-    //TODO: Analyze and check should we keep the url here or in the app.properties.
-    override val apiURL = "https://fhgenie-api-iem-dev-assist.openai.azure.com/openai/deployments/gpt-4o-2024-08-06/chat/completions?api-version=2024-02-01"
+    override val apiURL = AppProperties.openaiApiUrl!!
     override val apiKey = AppProperties.apiKey!!
 }
 
 object OlamaLLMConfig : LLMConfig {
-    override val apiURL = "Ollama_Api_Url"
+    override val apiURL = AppProperties.olamaApiUrl!!
     override val apiKey = AppProperties.apiKey!!
 }
 
-fun getLLMConfig(isOpenAI: Boolean): LLMConfig {
-    if (isOpenAI) {
-        return OpenAiLLMConfig
+fun getLLMConfig(): LLMConfig {
+    if (AppProperties.llmModel.lowercase(Locale.getDefault()) == "olama") {
+        return OlamaLLMConfig
     }
 
-    return OlamaLLMConfig
+    // By default, always provide openai model if there is any error in the app.properties file.
+    return OpenAiLLMConfig
 }

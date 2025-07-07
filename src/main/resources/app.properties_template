@@ -1,1 +1,6 @@
 api.key=<YOUR FRAUNHOFER LLM API KEY HERE>
+
+openai.api.url=https://fhgenie-api-iem-dev-assist.openai.azure.com/openai/deployments/gpt-4o-2024-08-06/chat/completions?api-version=2024-02-01
+olama.api.url=<Olama FRAUNHOFER server URL>
+
+llm.model=<openai or olama>
