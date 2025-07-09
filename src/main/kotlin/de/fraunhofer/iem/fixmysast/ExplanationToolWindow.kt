@@ -9,9 +9,8 @@ import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
 import de.fraunhofer.iem.fixmysast.ui.ExplanationPanel
-import de.fraunhofer.iem.fixmysast.ui.VulnerabilityList
+import de.fraunhofer.iem.fixmysast.ui.ResultsTree
 import java.awt.BorderLayout
-import javax.swing.BoxLayout
 import javax.swing.JPanel
 import javax.swing.SwingConstants
 
@@ -43,23 +42,9 @@ class ExplanationToolWindow : ToolWindowFactory {
             toolPanel.add(actionToolbar.component, BorderLayout.PAGE_START)
         }
 
-        val leftPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-        }
-
-        val rightPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-        }
-
-        val listScrollPane = JBScrollPane(VulnerabilityList(project))
-        leftPanel.add(listScrollPane)
-
-        val leftScrollPane = JBScrollPane(leftPanel)
-        val rightScrollPane = JBScrollPane(ExplanationPanel(project))
-
         val splitPane = JBSplitter(false, 0.2f).apply {
-            firstComponent = leftScrollPane
-            secondComponent = rightScrollPane
+            firstComponent = JBScrollPane(ResultsTree(project))
+            secondComponent = ExplanationPanel(project)
         }
 
         toolPanel.add(splitPane, BorderLayout.CENTER)
