@@ -7,11 +7,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
-import de.fraunhofer.iem.fixmysast.comm.LlmApiNotifier
-import de.fraunhofer.iem.fixmysast.llmService.LLMClient
-import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
-import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
+import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
+import de.fraunhofer.iem.fixmysast.llm.Explanation
+import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.sast.Results
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
@@ -32,10 +31,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         add(browser.component)
 
         //Subscribe to the response topic to get response
-        bus.connect().subscribe(LlmApiNotifier.GET_RESPONSE_TOPIC, object : LlmApiNotifier {
-            override fun sendRequest(results: SASTParsedResult) {
-                TODO("Not yet implemented")
-            }
+        bus.connect().subscribe(ExplanationNotifier.SHOW_EXPLANATION_TOPIC, object : ExplanationNotifier {
 
             override fun getResponse(
                 results: SASTParsedResult,
