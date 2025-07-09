@@ -1,6 +1,5 @@
 package de.fraunhofer.iem.fixmysast.ui
 
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
@@ -16,6 +15,7 @@ import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
+import java.awt.BorderLayout
 import javax.swing.JPanel
 
 //Helper function for aesthetics
@@ -25,74 +25,53 @@ class ExplanationPanel(project: Project) : JPanel() {
     val bus: MessageBus = project.messageBus
 
     init {
-        // Use JCEF browser for rich HTML content
+        layout = BorderLayout()
 
+        // Use JCEF browser for rich HTML content
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
-        add(browser.component)
+        add(browser.component, BorderLayout.CENTER)
 
         //Subscribe to the response topic to get response
         bus.connect().subscribe(ExplanationNotifier.SHOW_EXPLANATION_TOPIC, object : ExplanationNotifier {
 
-            override fun getResponse(
-                results: SASTParsedResult,
-                issue: SASTIssue,
-                level: ExpertiseLevel
-            ) {
-
-                renderExplanation(results, issue, level)
+            override fun showExplanation(issue: Issue) {
+                showHtml(issue)
             }
         })
     }
 
-
-    private fun renderExplanation(parsedResult: SASTParsedResult,
-                                  issue: SASTIssue,
-                                  level: ExpertiseLevel
-    ) {
-
-        fun cacheKey() = issue to level
-
-        //Try parsed SARIF Explanations
-        val fromParser = parsedResult.llmExplanations[cacheKey()]
-        if (fromParser != null) {
-            showHtml(fromParser,issue,browser)
-            return
-        }
-        //2 look in this-session cache
-        val fromMemory = explanationCache[cacheKey()]
-        if (fromMemory != null)
-        {
-            showHtml(fromMemory,issue,browser)
-            return
-        }
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val fresh = LLMClient.getExplanation(issue,level)
-                ?: "LLM failed to generate an explanation"
-
-            explanationCache[cacheKey()] = fresh
-            parsedResult.llmExplanations[cacheKey()] = fresh
-
-            showHtml(fresh, issue, browser)
-        }
-    }
-
-    //Instruct chat respones to produce YAML
-    //parse YAML for proper vars
-    //wrap YAML recieved elements with HTML code
-    private fun getSectionsFromYaml(response: String): ExplanationModel {
+    /*
+        Instruct chat respones to produce YAML
+        parse YAML for proper vars
+        wrap YAML recieved elements with HTML code
+     */
+    private fun getSectionsFromYaml(response: String): Explanation {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
         val exampleSection = data["ExampleCode"] as? String ?: " "
         val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
         val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
-        val codeSectionExplanation = data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
-        return ExplanationModel(explanationSection, exampleSection.trimStart(), exampleCodeExplanation, codeSection.trimStart(), codeSectionExplanation)
+        val codeSectionExplanation =
+            data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
+        return Explanation(
+            explanationSection,
+            exampleSection.trimStart(),
+            exampleCodeExplanation,
+            codeSection.trimStart(),
+            codeSectionExplanation
+        )
     }
 
-    private fun showHtml(markdown: String, issue: SASTIssue, browser: JBCefBrowser){
+    private fun showHtml(issue: Issue) {
         ReadAction.nonBlocking<String> {
-            val (explanation, exampleCode, exampleCodeExplanation, fixSuggestion, fixSuggestionExplanation) = getSectionsFromYaml(markdown)
+            val (explanation,
+                exampleCode,
+                exampleCodeExplanation,
+                fixSuggestion,
+                fixSuggestionExplanation) = getSectionsFromYaml(
+                issue.explanation
+            )
 
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
@@ -107,7 +86,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.message
             )
             temp
-        }.finishOnUiThread(ModalityState.any()){ html ->
+        }.finishOnUiThread(ModalityState.any()) { html ->
             browser.loadHTML(html)
         }.submit(AppExecutorUtil.getAppExecutorService())
     }
@@ -137,50 +116,46 @@ class ExplanationPanel(project: Project) : JPanel() {
             return idx
         }
 
-        val explStart    = findContentStart(src, "Explanation").takeIf { it != -1 } ?: 0
+        val explStart = findContentStart(src, "Explanation").takeIf { it != -1 } ?: 0
         val exampleStart = findContentStart(src, "Example code", explStart)
         //val explCodeStart = findContentStart(src,)
 
-        val explEnd    = findContentEnd(src, "Example code").takeIf { it != -1 } ?: 0
+        val explEnd = findContentEnd(src, "Example code").takeIf { it != -1 } ?: 0
         val exampleEnd = findContentEnd(src, "CodeFixSuggestion", explEnd)
-        val fixStart     = findContentStart(src, "CodeFixSuggestion",
-            if (exampleStart != -1) exampleStart else explStart)
+        val fixStart = findContentStart(
+            src, "CodeFixSuggestion",
+            if (exampleStart != -1) exampleStart else explStart
+        )
 
         /* -------- slice the payloads (headers already excluded) -------- */
         val explanation = when {
             explStart == -1 -> ""
             exampleStart != -1 -> src.substring(explStart, explEnd + 1).trim()
-            fixStart     != -1 -> src.substring(explStart, exampleEnd + 1).trim()
-            else                -> src.substring(explStart).trim()
+            fixStart != -1 -> src.substring(explStart, exampleEnd + 1).trim()
+            else -> src.substring(explStart).trim()
         }
 
         val exampleCode = if (exampleStart != -1) {
             if (fixStart != -1) src.substring(exampleStart, exampleEnd + 1).trim()
-            else                src.substring(exampleStart).trim()
+            else src.substring(exampleStart).trim()
         } else ""
 
         val fixSuggestion = if (fixStart != -1) {
             src.substring(fixStart).trim()
         } else ""
-        println(explanation)
-        println(exampleCode)
-        println(fixSuggestion)
         return Triple(explanation, exampleCode, fixSuggestion)
     }
 
-    private lateinit var parsedResult: SASTParsedResult
     // Markdown parser
     fun markdownToHtml(md: String): String {
         val flavour = CommonMarkFlavourDescriptor()
         val ast: ASTNode = MarkdownParser(flavour).buildMarkdownTreeFromString(md)
         return HtmlGenerator(md, ast, flavour).generateHtml()
     }
-    //val explanationCache = mutableMapOf<SASTIssue, String>()
-    private val explanationCache : MutableMap<Pair<SASTIssue, ExpertiseLevel>, String> = mutableMapOf()
-    //<Pair<SASTIssue, ExpertiseLevel>, String>()
+
 
     //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
-    //String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
+//String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
     private fun wrapHtmlWithStyle(
         explanation: String,
         exampleCodeRaw: String,
@@ -199,7 +174,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         fun escapeHtml(txt: String) =
             txt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-        fun sendStringtoHtmlFormat(example:String): String {
+        fun sendStringtoHtmlFormat(example: String): String {
             return when {
                 example.isBlank() -> ""                 // no section at all
 
@@ -213,7 +188,11 @@ class ExplanationPanel(project: Project) : JPanel() {
 
                 // plain raw code               → escape & wrap ourselves
                 else ->
-                    """<pre><code class="language-java">${escapeHtml(example.trim().trimStart())}</code></pre>""".trimIndent()
+                    """<pre><code class="language-java">${
+                        escapeHtml(
+                            example.trim().trimStart()
+                        )
+                    }</code></pre>""".trimIndent()
             }
         }
 

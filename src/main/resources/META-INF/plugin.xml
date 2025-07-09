@@ -5,7 +5,7 @@
     <!-- ===== Basic metadata ===== -->
     <id>de.fraunhofer.iem.fixmysast</id>
     <name>FixMySAST</name>
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor url="https://www.iem.fraunhofer.de/">Fraunhofer IEM</vendor>
 
     <description><![CDATA[
     Enter short description for your plugin here.
@@ -20,7 +20,7 @@
 
         <!-- Tool-window registration -->
         <toolWindow
-                id="MyToolWindow"
+                id="FixMySAST"
                 factoryClass="de.fraunhofer.iem.fixmysast.ExplanationToolWindow"
                 anchor="right"
                 secondary="false"/>
@@ -30,7 +30,7 @@
     <!-- Project-level listener -->
     <projectListeners>
         <listener
-                class="de.fraunhofer.iem.fixmysast.ProblemsListener"
+                class="de.fraunhofer.iem.fixmysast.problems.ProblemsListener"
                 topic="com.intellij.analysis.problemsView.ProblemsListener"/>
     </projectListeners>
 

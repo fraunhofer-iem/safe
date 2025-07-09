@@ -7,7 +7,7 @@ import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
-import de.fraunhofer.iem.fixmysast.llm.LLMClient
+import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser
@@ -97,7 +97,7 @@ class ResultsTree(project: Project) : Tree() {
         ApplicationManager.getApplication().executeOnPooledThread {
             results.issues.forEach { issue ->
 
-                issue.explanation  = LLMClient.getExplanation(issue).toString()
+                issue.explanation  = LlmClient.getExplanation(issue).toString()
                 println("Response for: "+issue.type)
         }
         }

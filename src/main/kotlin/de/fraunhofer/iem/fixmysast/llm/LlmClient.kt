@@ -9,8 +9,10 @@ import de.fraunhofer.iem.fixmysast.sast.Issue
  *
  * @author Alexandra Fomina
  */
-object LLMClient {
+object LlmClient {
     private val mapper = jacksonObjectMapper()
+
+    private val explanationCache: MutableMap<String, String> = mutableMapOf()
 
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
@@ -20,14 +22,38 @@ object LLMClient {
         val level = LevelStateService.get().current                 // ← persisted default
         val prompt = PromptTemplate.build(issue, level)
         val requestBody = buildRequestBody(prompt)
+
+        if (explanationCache.containsKey(requestBody)) {
+            println("Found response for: " + issue.type)
+            return explanationCache[requestBody]!!
+        } else {
+            println("Send request for: "+ issue.type)
+            explanationCache[requestBody] = sendRequest(requestBody)
+
+            return explanationCache[requestBody]!!
+        }
+    }
+
+    fun sendRequest(requestBody: String): String {
+
+        //val future = CompletableFuture<String>()
+
         val llmConfig = getLLMConfig()
 
-        return try {
-            val response = HttpService.postJson(llmConfig.apiURL, llmConfig.apiKey, requestBody)
-            parseResponse(response)
+        try {
+            val response = HttpService.postJson(
+                llmConfig.apiURL,
+                llmConfig.apiKey,
+                requestBody
+            )
+
+            return parseResponse(response)!!
+            // future.complete(response)
         } catch (e: Exception) {
             e.printStackTrace()
             "LLM error: ${e.message ?: e.toString()}"
+            "No response received"
+            return "No response received"
         }
     }
 
