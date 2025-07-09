@@ -2,6 +2,7 @@ package de.fraunhofer.iem.fixmysast.data
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import de.fraunhofer.iem.fixmysast.PluginBundle
 import java.io.InputStreamReader
 
 /***
@@ -10,7 +11,7 @@ import java.io.InputStreamReader
 
 object SrmLoader {
     val srmCatalogMethods: Map<String, Srm> by lazy {
-        val stream = javaClass.getResourceAsStream(Constants.SRM_CATALOG_PATH)
+        val stream = javaClass.getResourceAsStream(PluginBundle.lazy("fixmysast.configuration.SRM_CATALOG_PATH").get())
             ?: throw IllegalStateException("srm-catalog.json not found in resources")
         val reader = InputStreamReader(stream)
         val json = Gson().fromJson<Map<String, Any>>(reader, object : TypeToken<Map<String, Any>>() {}.type)

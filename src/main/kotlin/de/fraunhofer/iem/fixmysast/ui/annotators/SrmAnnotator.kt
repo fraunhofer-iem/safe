@@ -8,8 +8,8 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiMethodCallExpression
 import com.intellij.util.FunctionUtil
+import de.fraunhofer.iem.fixmysast.PluginBundle
 import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
-import de.fraunhofer.iem.fixmysast.data.Constants
 import de.fraunhofer.iem.fixmysast.icons.IconUtils
 import de.fraunhofer.iem.fixmysast.ui.highlighter.SrmHighlighting.SRM_HIGHLIGHT
 import de.fraunhofer.iem.fixmysast.util.MethodUtil
@@ -25,7 +25,7 @@ class SrmAnnotator: Annotator {
             val methodSignature = MethodUtil.getMethodSignature(method)
 
             if (SrmFinder.isSRM(methodSignature)) {
-                val annotatorTooltipText = Constants.SRM_TOOLTIP_TEMPLATE.format(methodSignature, SrmFinder.getSrmAndCweCategory(methodSignature).joinToString(","))
+                val annotatorTooltipText = PluginBundle.lazy("fixmysast.tooltip.SRM_TOOLTIP_TEMPLATE").get().format(methodSignature, SrmFinder.getSrmAndCweCategory(methodSignature).joinToString(","))
                 val gutterTooltipText = SrmFinder.getSrmAndCweCategory(methodSignature).joinToString(",")
 
                 val lineMarkerInfo = LineMarkerInfo(
