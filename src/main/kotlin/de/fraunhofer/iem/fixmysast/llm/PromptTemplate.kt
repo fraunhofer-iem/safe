@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.fixmysast.llmService
+package de.fraunhofer.iem.fixmysast.llm
 
 import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
 import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue

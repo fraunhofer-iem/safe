@@ -7,7 +7,7 @@ import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
-import de.fraunhofer.iem.fixmysast.llmService.LLMClient
+import de.fraunhofer.iem.fixmysast.llm.LLMClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser

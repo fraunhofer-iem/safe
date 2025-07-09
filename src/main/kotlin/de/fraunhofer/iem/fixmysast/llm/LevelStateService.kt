@@ -1,10 +1,9 @@
-package de.fraunhofer.iem.fixmysast.sast
-import com.intellij.openapi.components.*
-import com.intellij.openapi.components.Service.Level.APP
+package de.fraunhofer.iem.fixmysast.llm
+
+import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
-import com.intellij.ide.util.PropertiesComponent
-import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.llm.ExplainResults.ExpertiseLevel
 
 @Service(Service.Level.APP)
 @State(

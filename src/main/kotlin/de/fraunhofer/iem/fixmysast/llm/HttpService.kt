@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.fixmysast.llmService
+package de.fraunhofer.iem.fixmysast.llm
 
 import java.io.*
 import java.net.HttpURLConnection

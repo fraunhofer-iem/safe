@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.fixmysast.llmService
+package de.fraunhofer.iem.fixmysast.llm
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue

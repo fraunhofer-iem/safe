@@ -1,6 +1,6 @@
-package de.fraunhofer.iem.fixmysast.ui
+package de.fraunhofer.iem.fixmysast.llm
 
-data class ExplanationModel(
+data class Explanation(
     val explanation: String,
     val exampleCode: String,
     val exampleCodeExplanation: String,
