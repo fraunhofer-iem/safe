@@ -1,7 +1,7 @@
 package de.fraunhofer.iem.fixmysast.comm
 
 import com.intellij.util.messages.Topic
-import de.fraunhofer.iem.fixmysast.sast.SASTParsedResult
+import de.fraunhofer.iem.fixmysast.sast.Results
 
 interface ParseFileNotifier {
 
@@ -11,6 +11,6 @@ interface ParseFileNotifier {
                 ParseFileNotifier::class.java)
     }
 
-    fun getSastResults(results: SASTParsedResult)
+    fun getSastResults(results: Results)
 
 }

@@ -2,8 +2,7 @@ package de.fraunhofer.iem.fixmysast.llmService
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
+import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
  * This class provides the functionality of sending LLM request and receiving the explanation for the SAST issue.
@@ -16,7 +15,9 @@ object LLMClient {
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
      */
-    fun getExplanation(issue: SASTIssue, level: ExpertiseLevel = ExpertiseLevel.INTERMEDIATE): String? {
+    fun getExplanation(issue: Issue): String? {
+
+        val level = LevelStateService.get().current                 // ← persisted default
         val prompt = PromptTemplate.build(issue, level)
         val requestBody = buildRequestBody(prompt)
         val llmConfig = getLLMConfig()

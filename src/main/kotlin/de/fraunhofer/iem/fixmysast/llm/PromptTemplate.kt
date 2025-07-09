@@ -2,6 +2,7 @@ package de.fraunhofer.iem.fixmysast.llmService
 
 import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
 import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
+import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
  * Prompt templates for the explanation of the SAST issue and provides the prompts based on the developers expertise level.
@@ -10,13 +11,13 @@ import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
  * @author Ranjith
  */
 object PromptTemplate {
-    fun build(issue: SASTIssue, level: ExpertiseLevel): String = when (level) {
+    fun build(issue: Issue, level: ExpertiseLevel): String = when (level) {
         ExpertiseLevel.BEGINNER -> buildBeginnerPrompt(issue)
         ExpertiseLevel.INTERMEDIATE -> buildIntermediatePrompt(issue)
         ExpertiseLevel.ADVANCED -> buildAdvancedPrompt(issue)
     }
 
-    private fun buildBeginnerPrompt(issue: SASTIssue): String {
+    private fun buildBeginnerPrompt(issue: Issue): String {
         return """
                 You are an expert in software security. Explain the given error from the static analysis tool to a novice software developer in a way that helps them understand the security issue.
                  
@@ -83,7 +84,7 @@ object PromptTemplate {
         """.trimIndent()
     }
 
-    private fun buildIntermediatePrompt(issue: SASTIssue): String {
+    private fun buildIntermediatePrompt(issue: Issue): String {
         return """
             You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an intermediate-level developer. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
  
@@ -151,7 +152,7 @@ object PromptTemplate {
         """.trimIndent()
     }
 
-    private fun buildAdvancedPrompt(issue: SASTIssue): String {
+    private fun buildAdvancedPrompt(issue: Issue): String {
         return """
             You are an expert in software security. Explain the given error from the static analysis tool to an advanced-level developer in a way that helps them understand the security issue.
  

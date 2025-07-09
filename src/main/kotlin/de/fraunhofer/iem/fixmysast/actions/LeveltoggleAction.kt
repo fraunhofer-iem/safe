@@ -1,7 +1,7 @@
 package de.fraunhofer.iem.fixmysast.actions
 import com.intellij.openapi.actionSystem.*
-import de.fraunhofer.iem.fixmysast.sast.LevelStateService
-import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
+import de.fraunhofer.iem.fixmysast.llm.LevelStateService
+import de.fraunhofer.iem.fixmysast.llm.ExplainResults.ExpertiseLevel
 
 //One radio-button for a single level
 class LevelToggleAction(private val level: ExpertiseLevel) : ToggleAction(level.label) {
