@@ -1,7 +1,5 @@
 package de.fraunhofer.iem.fixmysast.llm
 
-import de.fraunhofer.iem.fixmysast.sast.dataModel.ExpertiseLevel
-import de.fraunhofer.iem.fixmysast.sast.dataModel.SASTIssue
 import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
