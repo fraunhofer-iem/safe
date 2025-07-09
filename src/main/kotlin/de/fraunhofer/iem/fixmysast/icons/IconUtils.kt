@@ -1,7 +1,7 @@
 package de.fraunhofer.iem.fixmysast.icons
 
 import com.intellij.openapi.util.IconLoader
-import de.fraunhofer.iem.fixmysast.analysis.SRMFinder
+import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
 import de.fraunhofer.iem.fixmysast.data.Constants
 import javax.swing.Icon
 
@@ -23,7 +23,7 @@ object IconUtils {
         }
     }
     fun getMethodSRMGutterIcon(methodSignature: String): Icon {
-        val categories = SRMFinder.getSrmAndCweCategory(methodSignature)
+        val categories = SrmFinder.getSrmAndCweCategory(methodSignature)
         if (categories.size ==1){
             return getIcon(categories.first())
         } else {

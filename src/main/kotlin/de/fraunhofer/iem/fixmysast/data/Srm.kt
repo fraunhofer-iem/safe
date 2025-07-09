@@ -1,6 +1,6 @@
 package de.fraunhofer.iem.fixmysast.data
 
-data class SRM(
+data class Srm(
     val signature: String,
     val srm: List<String>,
     val cwe: List<String>
