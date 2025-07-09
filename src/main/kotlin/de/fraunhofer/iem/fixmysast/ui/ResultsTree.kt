@@ -9,6 +9,7 @@ import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +43,8 @@ class ResultsTree(project: Project) : Tree() {
         ) {
 
             // Load SARIF results from given path
-            val parsedResult = SarifParser.parse(
+            //val parsedResult = SarifParser.parse(
+          val parsedResult = JsonParser.parse(
                 project, PropertiesComponent.getInstance(project)
                     .getValue("de.fraunhofer.iem.fixmysast.actions.SastFile")!!
             )

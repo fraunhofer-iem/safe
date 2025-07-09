@@ -49,13 +49,7 @@ data class Region(val startLine: Int?, val endLine: Int?)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Rule(val id: String?, val properties: JsonNode? = null)
 
-//field to hold LLM responses
-/*data class SASTParsedResult(
-    val groupedIssues: Map<String, List<Issue>>,
-    val llmExplanations: MutableMap<Pair<Issue, ExpertiseLevel>, String> = mutableMapOf()
-)*/
-
-private val logger = Logger.getInstance("FixMySAST")
+val logger = Logger.getInstance("FixMySAST")
 
 object SarifParser {
 
@@ -84,25 +78,6 @@ object SarifParser {
                     issues.add(Issue(type, message, tags, codeSnippet))
                 }
             }
-
-            //val grouped = issues.groupBy { it.type }
-            //val explanationPipe = mutableMapOf<Pair<Issue, ExpertiseLevel>, String>()
-
-            //val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-            //val scope = CoroutineScope(dispatcher)
-
-            /*issues.forEach { issue ->
-                pe.launch {
-                    val text = try {
-                        LLMClient.getExplanation(issue, level)
-                            ?: "LLM failed to generate explanation"
-                    } catch (e: Exception) {
-                        "LLM failed to generate explanation horribly"
-                    }
-                    explanationPipe[issue to level] = text
-                }
-            }*/
-
 
             return Results(
                 sarifFile.absolutePath,
