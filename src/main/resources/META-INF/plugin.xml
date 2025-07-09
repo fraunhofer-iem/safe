@@ -25,7 +25,7 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <annotator language="JAVA" implementationClass="de.fraunhofer.iem.fixmysast.ui.annotators.SRMAnnotator"/>
+        <annotator language="JAVA" implementationClass="de.fraunhofer.iem.fixmysast.ui.annotators.SrmAnnotator"/>
     </extensions>
 
     <projectListeners>

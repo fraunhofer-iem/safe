@@ -8,8 +8,8 @@ import java.io.InputStreamReader
  * Loads the SRMs from the SRM-Catalog json file.
  ***/
 
-object SRMLoader {
-    val srmCatalogMethods: Map<String, SRM> by lazy {
+object SrmLoader {
+    val srmCatalogMethods: Map<String, Srm> by lazy {
         val stream = javaClass.getResourceAsStream(Constants.SRM_CATALOG_PATH)
             ?: throw IllegalStateException("srm-catalog.json not found in resources")
         val reader = InputStreamReader(stream)
@@ -22,7 +22,7 @@ object SRMLoader {
             val signature = entry["signature"] as? String ?: return@mapNotNull null
             val srm = entry["srm"] as? List<String> ?: emptyList()
             val cwe = entry["cwe"] as? List<String> ?: emptyList()
-            signature to SRM(signature, srm, cwe)
+            signature to Srm(signature, srm, cwe)
         }.toMap()
     }
 }
