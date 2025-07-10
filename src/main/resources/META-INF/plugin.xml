@@ -14,6 +14,7 @@
 
     <!-- Platform dependency -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
 
     <!-- ===== Extensions & listeners ===== -->
     <extensions defaultExtensionNs="com.intellij">
@@ -25,6 +26,7 @@
                 anchor="right"
                 secondary="false"/>
 
+        <annotator language="JAVA" implementationClass="de.fraunhofer.iem.fixmysast.ui.annotators.SrmAnnotator"/>
     </extensions>
 
     <!-- Project-level listener -->
