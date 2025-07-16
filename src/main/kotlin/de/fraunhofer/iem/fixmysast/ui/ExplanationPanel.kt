@@ -9,7 +9,6 @@ import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.sast.Issue
-import de.fraunhofer.iem.fixmysast.sast.Results
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
@@ -45,7 +44,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         parse YAML for proper vars
         wrap YAML recieved elements with HTML code
      */
-    private fun getSectionsFromYaml(response: String): Explanation {
+    private fun getSectionsFromYaml(response: String?): Explanation {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
@@ -83,7 +82,12 @@ class ExplanationPanel(project: Project) : JPanel() {
                 fixSuggestionExplanation,
                 headerTags,
                 issue.type,
-                issue.message
+                issue.message,
+                issue.severity,
+                issue.confidence,
+                issue.cwe,
+                issue.owasp,
+                issue.impact
             )
             temp
         }.finishOnUiThread(ModalityState.any()) { html ->
@@ -164,7 +168,12 @@ class ExplanationPanel(project: Project) : JPanel() {
         fixSuggestionExplanation: String,
         headerTags: String,
         type: String,
-        message: String
+        message: String,
+        severity: String?,
+        confidence: String?,
+        cwe: List<String>?,
+        owasp: List<String>?,
+        impact: String?
     ): String {
 
         /* ------------------------------------------------------------------ */
@@ -199,6 +208,49 @@ class ExplanationPanel(project: Project) : JPanel() {
         val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
         val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
 
+        val owaspButtonHtml = owasp?.joinToString(separator = "\n") { tag ->
+            """<button class="tag tag-owasp" disabled>${tag}</button>  """
+        }
+
+        val tagHtml = """
+            <div class="tag-container" style="margin-bottom: 8px;">
+            <button class="tag tag-${severity?.lowercase()}">Severity: ${severity}</button>
+            <button class="tag tag-${confidence?.lowercase()}">Confidence: ${confidence}</button>
+            <button class="tag tag-${impact?.lowercase()}">Impact: ${impact}</button>
+            $owaspButtonHtml
+            </div>
+        """.trimIndent()
+
+        fun simplifyCWE(cweRaw: List<String>): String {
+            val cweString = cweRaw[0]
+            //removed square brackets
+            val trimmed = cweString.trim().removePrefix("[").removeSuffix("]")
+            // 2. Extract CWE code (e.g. CWE-79)
+            val codeRegex = Regex("""(CWE-\d+)""")
+            val codeMatch = codeRegex.find(trimmed)
+            val code = codeMatch?.value ?: ""
+
+            // 3. Extract phrase inside parentheses with single quotes: ('...')
+            val innerQuoteRegex = Regex("""\('([^']+)'\)""")
+            val innerQuoteMatch = innerQuoteRegex.find(trimmed)
+
+            return if (code.isNotEmpty()) {
+                if (innerQuoteMatch != null) {
+                    // Use the quoted phrase inside parentheses
+                    "$code: ${innerQuoteMatch.groupValues[1]}"
+                } else {
+                    // If no parentheses-quoted phrase, fallback to full description after code
+                    val desc = trimmed.substringAfter("$code:").trim()
+                    "$code: $desc"
+                }
+            } else {
+                // fallback: return trimmed original string
+                trimmed
+            }
+        }
+
+        val title = simplifyCWE(cwe.orEmpty())
+
         /* ------------------------------------------------------------------ */
         /* 2. Build the final HTML page                                       */
         /* ------------------------------------------------------------------ */
@@ -222,10 +274,36 @@ class ExplanationPanel(project: Project) : JPanel() {
             dl          { margin:0 0 1em; }
             dt          { font-weight:600; display:inline; }
             dd          { margin:0 0 .5em .5em; display:inline; }
+.tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 16px;
+    margin-right: 6px;
+    margin-top: 4px;
+    color: white;
+    background-color: #555;
+    border: none;
+    cursor: default;
+    pointer-events: none;
+    font-family:"Segoe UI",sans-serif;
+    text-align: center;
+    user-select:none;
+}
+.tag-low         { background-color: #4CAF50; color: #000; }
+.tag-medium      { background-color: #f9c74f; color: #000; }
+.tag-high        { background-color: #d73a49; }
+.tag-note        { background-color: #4CAF50; color: #000; }
+.tag-warning     { background-color: #f9c74f; color: #000; }
+.tag-error       { background-color: #d73a49; }
+.tag-critical    { background-color: #6f42c1; }
+.tag-owasp       { background-color: #007acc; }
 </style>
 </head>
 <body>
-<h1>$headerTags</h1>
+<h1>$title</h1>
+$tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
 
 <h2>Information provided by the SAST</h2>

@@ -28,7 +28,10 @@ data class Result(
     val ruleId: String?,
     val message: Message,
     val properties: JsonNode?,
-    val locations: List<Location>?
+    val locations: List<Location>?,
+    val cwe: List<String>? = null,
+    val severity: String? = null,
+    val confidence: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -75,7 +78,10 @@ object SarifParser {
                     val tags = run.tool.driver.rules?.find { it.id == result.ruleId }?.properties?.get("tags")
                         ?.mapNotNull { it.asText() } ?: emptyList<String>()
                     val codeSnippet = extractCodeSnippet(project, result)
-                    issues.add(Issue(type, message, tags, codeSnippet))
+                    val confidence = null
+                    val severity = null
+                    val cwe = null
+                    issues.add(Issue(type, message, tags, codeSnippet, confidence, severity, cwe))
                 }
             }
 

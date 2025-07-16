@@ -9,20 +9,24 @@ import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
-import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser
+import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.serialization.json.Json
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.concurrent.Executors
+import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeNode
 
 
 class ResultsTree(project: Project) : Tree() {
 
+    var isExplained: Boolean = false
     private lateinit var results: Results
     val bus: MessageBus = project.messageBus
     var resultsModel: DefaultTreeModel
@@ -43,8 +47,8 @@ class ResultsTree(project: Project) : Tree() {
         ) {
 
             // Load SARIF results from given path
-            //val parsedResult = SarifParser.parse(
-          val parsedResult = JsonParser.parse(
+            //Note: Choose between JsonParser or SASTParser here
+            val parsedResult = JsonParser.parse(
                 project, PropertiesComponent.getInstance(project)
                     .getValue("de.fraunhofer.iem.fixmysast.actions.SastFile")!!
             )
@@ -81,6 +85,7 @@ class ResultsTree(project: Project) : Tree() {
     fun updateTree(results: Results) {
 
         this.results = results
+        rootNode.removeAllChildren()
 
         val resultsTreeNode = DefaultMutableTreeNode(results.filePath)
 
@@ -88,6 +93,7 @@ class ResultsTree(project: Project) : Tree() {
             resultsTreeNode.add(DefaultMutableTreeNode(issue))
         }
         rootNode.add(resultsTreeNode)
+        resultsModel.reload()
     }
 
 
@@ -97,10 +103,18 @@ class ResultsTree(project: Project) : Tree() {
         val scope = CoroutineScope(dispatcher)
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            results.issues.forEach { issue ->
+            val fileNode = rootNode.lastChild as? DefaultMutableTreeNode ?: return@executeOnPooledThread
+            results.issues.forEachIndexed {index, issue ->
 
                 issue.explanation  = LlmClient.getExplanation(issue).toString()
-                println("Response for: "+issue.type)
+
+                val issueNode = fileNode.getChildAt(index) as DefaultMutableTreeNode
+                SwingUtilities.invokeLater {
+                    resultsModel.nodeChanged(issueNode)
+                    this.repaint()
+                    println("Setting colors up")
+                }
+                println("Response for: " + issue.type)
         }
         }
     }

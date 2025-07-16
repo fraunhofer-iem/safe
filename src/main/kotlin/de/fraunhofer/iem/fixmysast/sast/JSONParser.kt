@@ -34,12 +34,13 @@ data class Position(val line: Int, val col: Int, val offset: Int)
 data class Extra(
     val message: String,
     val metavars: JsonNode?,
-    val metadata: Metadata
+    val metadata: Metadata,
+    val severity: String?,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Metadata(
-    val cwe: List<String>?,
+    val cwe: List<String>,
     val owasp: List<String>?,
     val likelihood: String?,
     val impact: String?,
@@ -70,6 +71,12 @@ object JsonParser {
                 val message = r.extra.message
                 val tags    = (r.extra.metadata.owasp ?: emptyList()) +
                         (r.extra.metadata.cwe   ?: emptyList())
+                val explanation = r.extra.message
+                val confidence = r.extra.metadata.confidence
+                val cwe = r.extra.metadata.cwe ?: emptyList()
+                val severity = r.extra.severity ?: "Unknown"
+                val owasp = r.extra.metadata.owasp ?: emptyList()
+                val impact = r.extra.metadata.impact ?: ""
 
 
                 val codeSnippet = extractCodeSnippet(
@@ -79,7 +86,16 @@ object JsonParser {
                     r.end.line
                 )
 
-                    issues.add(Issue(type, message, tags, codeSnippet))
+//                val type: String,
+//                val message: String,
+//                val tags: List<String>,
+//                //Add line numbers
+//                val codeSnippet: String,
+//                var explanation: String? = "",
+//                val confidence: String,
+//                val severity: String,
+//                val cwe: List<String>
+                    issues.add(Issue(type, message, tags, codeSnippet, explanation, confidence, severity, cwe, owasp, impact))
                 }
 
             return Results(

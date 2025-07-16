@@ -18,6 +18,12 @@ data class Issue(
     val tags: List<String>,
     //Add line numbers
     val codeSnippet: String,
-    var explanation: String = "",
+    var explanation: String? = "",
+    val confidence: String? = null,
+    val severity: String? = null,
+    val cwe: List<String>? = null,
+    val owasp: List<String>? = null,
+    val impact: String? = null
+
 )
 
