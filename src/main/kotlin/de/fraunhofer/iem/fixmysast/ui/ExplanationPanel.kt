@@ -119,15 +119,11 @@ class ExplanationPanel(project: Project) : JPanel() {
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
         val exampleSection = data["ExampleCode"] as? String ?: " "
         val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
-        val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
-        val codeSectionExplanation =
-            data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
+
         return Explanation(
             explanationSection,
             exampleSection.trimStart(),
-            exampleCodeExplanation,
-            codeSection.trimStart(),
-            codeSectionExplanation
+            exampleCodeExplanation
         )
     }
 
@@ -139,9 +135,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         ReadAction.nonBlocking<String> {
             val (explanation,
                 exampleCode,
-                exampleCodeExplanation,
-                fixSuggestion,
-                fixSuggestionExplanation) = getSectionsFromYaml(
+                exampleCodeExplanation) = getSectionsFromYaml(
                 issue.explanation
             )
 
@@ -151,8 +145,6 @@ class ExplanationPanel(project: Project) : JPanel() {
                 explanation,
                 exampleCode,
                 exampleCodeExplanation,
-                fixSuggestion,
-                fixSuggestionExplanation,
                 headerTags,
                 issue.type,
                 issue.message,
@@ -251,8 +243,6 @@ class ExplanationPanel(project: Project) : JPanel() {
         explanation: String,
         exampleCodeRaw: String,
         exampleCodeExplanation: String,
-        fixSuggestion: String,
-        fixSuggestionExplanation: String,
         headerTags: String,
         type: String,
         message: String,
@@ -294,7 +284,6 @@ class ExplanationPanel(project: Project) : JPanel() {
         }
 
         val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
-        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
 
         //Formatting for multiple OWASP tags
         val owaspButtonHtml = owasp?.joinToString(separator = "\n") { tag ->
@@ -433,11 +422,10 @@ $tagHtml
               $exampleHtml
 </section>""" else ""}
  
-          ${if (fixSuggestion.isNotBlank()) """
 <section>
 <h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
 ${CweMitigationSummary.getMitigationSummaryFor(getCweIdDigitOnly())}
-</section>""" else ""}
+</section>
 
 <section id = feedback-section" style="margin-top: 24px;">
 <h2> Was this explanation helpful?</h2>
