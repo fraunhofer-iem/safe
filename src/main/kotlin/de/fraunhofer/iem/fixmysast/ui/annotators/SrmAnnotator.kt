@@ -31,7 +31,7 @@ class SrmAnnotator: Annotator {
                 val lineMarkerInfo = LineMarkerInfo(
                     element,
                     element.textRange,
-                    IconUtils.getMethodSRMGutterIcon(methodSignature),
+                    IconUtils.getSRMGutterIcon(methodSignature),
                     FunctionUtil.constant(gutterTooltipText),
                     null,
                     GutterIconRenderer.Alignment.RIGHT,
