@@ -16,6 +16,7 @@ import com.intellij.util.ui.JBUI
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
+import de.fraunhofer.iem.fixmysast.sast.CweMitigationSummary
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
@@ -337,6 +338,16 @@ class ExplanationPanel(project: Project) : JPanel() {
             }
         }
 
+        fun getCweIdDigitOnly(): String {
+            return cwe?.takeIf { it.isNotEmpty() }
+                ?.firstOrNull()
+                ?.split(":")
+                ?.firstOrNull()
+                ?.split("-")
+                ?.takeIf { it.size == 2 }
+                ?.getOrNull(1) ?: ""
+        }
+
         val title = simplifyCWE(cwe.orEmpty())
 
         /* ------------------------------------------------------------------ */
@@ -425,8 +436,7 @@ $tagHtml
           ${if (fixSuggestion.isNotBlank()) """
 <section>
 <h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
-$fixSuggestionExplanation
-$fixSuggestion
+${CweMitigationSummary.getMitigationSummaryFor(getCweIdDigitOnly())}
 </section>""" else ""}
 
 <section id = feedback-section" style="margin-top: 24px;">
