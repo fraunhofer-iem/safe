@@ -1,6 +1,9 @@
 package de.fraunhofer.iem.fixmysast.ui
 
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
+import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.SimpleTextAttributes
@@ -85,6 +88,10 @@ class ResultsTree(project: Project) : Tree() {
             })
     }
 
+    fun refreshTree() {
+        explainResults(true)
+    }
+
     fun parseFile(resultsFile: String, project: Project): Results {
 
         if (resultsFile.endsWith(".json")
@@ -118,7 +125,7 @@ class ResultsTree(project: Project) : Tree() {
     }
 
 
-    private fun explainResults() {
+    private fun explainResults(isRegenerate: Boolean = false) {
 
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val scope = CoroutineScope(dispatcher)
@@ -127,6 +134,17 @@ class ResultsTree(project: Project) : Tree() {
             results.issues.forEachIndexed { index, issue ->
 
                 issue.explanation = LlmClient.getExplanation(issue).toString()
+            }
+
+            if (isRegenerate) {
+                Notifications.Bus.notify(
+                    Notification(
+                        "Nofication",
+                        "Re-generating",
+                        "Successfully re-generated new responses for all the issues.",
+                        NotificationType.INFORMATION
+                    )
+                )
             }
         }
     }
