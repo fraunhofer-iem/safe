@@ -81,7 +81,21 @@ object SarifParser {
                     val confidence = null
                     val severity = null
                     val cwe = null
-                    issues.add(Issue(type, message, tags, codeSnippet, confidence, severity, cwe))
+
+                    val location = result.locations?.firstOrNull()?.physicalLocation
+
+                    issues.add(
+                        Issue(
+                            type, message, tags,
+                            IssueLocation(
+                                location?.artifactLocation?.uri!!,
+                                codeSnippet,
+                                location.region?.startLine!!,
+                                location.region?.endLine!!
+                            ),
+                            confidence, severity, cwe
+                        )
+                    )
                 }
             }
 

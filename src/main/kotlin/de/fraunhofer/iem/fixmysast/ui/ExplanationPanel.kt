@@ -6,11 +6,13 @@ import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
+import com.intellij.util.ui.JBUI
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
@@ -27,12 +29,17 @@ import javax.swing.JPanel
 //Helper function for aesthetics
 class ExplanationPanel(project: Project) : JPanel() {
 
+    val sastResult = JBLabel()
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
     private var currentIssue: Issue? = null
 
     init {
         layout = BorderLayout()
+
+        sastResult.setBorder(JBUI.Borders.empty(10))
+        sastResult.isAllowAutoWrapping = true
+        add(sastResult, BorderLayout.NORTH)
 
         // Use JCEF browser for rich HTML content
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
@@ -88,15 +95,17 @@ class ExplanationPanel(project: Project) : JPanel() {
         }
 
         //Subscribe to the response topic to get response
-        bus.connect().subscribe(ExplanationNotifier.SHOW_EXPLANATION_TOPIC, object : ExplanationNotifier {
+        bus.connect().subscribe(
+            ExplanationNotifier.SHOW_EXPLANATION_TOPIC,
+            object : ExplanationNotifier {
 
-            override fun showExplanation(issue: Issue) {
-                currentIssue = issue
-                showHtml(issue, jsQuery)
-            }
-        })
-
-      }
+                override fun showExplanation(issue: Issue) {
+                    sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
+                    currentIssue = issue
+                    showHtml(issue,jsQuery)
+                }
+            })
+    }
 
     /*
         Instruct chat respones to produce YAML
@@ -135,6 +144,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.explanation
             )
 
+            //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
             val temp = wrapHtmlWithStyle(
                 explanation,
@@ -234,6 +244,8 @@ class ExplanationPanel(project: Project) : JPanel() {
     }
 
 
+    //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
+//String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
     private fun wrapHtmlWithStyle(
         explanation: String,
         exampleCodeRaw: String,
@@ -397,12 +409,6 @@ class ExplanationPanel(project: Project) : JPanel() {
 <h1>$title</h1>
 $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
-
-<h2>Information provided by the SAST</h2>
-          <dl>
-<dt>Type:</dt><dd>$type</dd> <br />
-<dt>Description:</dt><dd>$message</dd>
-</dl>
  
           <section>
 <h2>Explanation</h2>

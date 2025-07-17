@@ -12,18 +12,31 @@ data class Results(
     val issues: List<Issue>
 )
 
+data class IssueLocation(
+    val fileName: String,
+    val codeSnippet: String,
+    val startLine: Int,
+    val endLine: Int,
+) {
+    override fun toString(): String {
+        return fileName
+    }
+}
+
 data class Issue(
     val type: String,
     val message: String,
     val tags: List<String>,
-    //Add line numbers
-    val codeSnippet: String,
+    val location: IssueLocation,
     var explanation: String? = "",
     val confidence: String? = null,
     val severity: String? = null,
     val cwe: List<String>? = null,
     val owasp: List<String>? = null,
     val impact: String? = null
-
-)
+) {
+    override fun toString(): String {
+        return type
+    }
+}
 

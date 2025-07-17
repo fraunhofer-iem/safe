@@ -31,7 +31,7 @@ class ExplanationToolWindow : ToolWindowFactory {
 
         val actions = ActionManager.getInstance().getAction("FixMySast.Actions") as DefaultActionGroup
         val actionToolbar = ActionManager.getInstance()
-            .createActionToolbar("ActionToolbar", actions, true)
+            .createActionToolbar("FixMySast.Actions", actions, true)
         actionToolbar.targetComponent = toolPanel
 
         if (toolWindow.anchor.isHorizontal) {
@@ -42,7 +42,7 @@ class ExplanationToolWindow : ToolWindowFactory {
             toolPanel.add(actionToolbar.component, BorderLayout.PAGE_START)
         }
 
-        val splitPane = JBSplitter(false, 0.2f).apply {
+        val splitPane = JBSplitter(false, 0.4f).apply {
             firstComponent = JBScrollPane(ResultsTree(project))
             secondComponent = ExplanationPanel(project)
         }
