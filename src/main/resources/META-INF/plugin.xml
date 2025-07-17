@@ -44,12 +44,6 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <!-- Main “Run analysis” action -->
-            <action id="FixMySAST.Run"
-                    class="de.fraunhofer.iem.fixmysast.actions.FixMySASTAction"
-                    text="Run Analysis"
-                    icon="AllIcons.Toolwindows.ToolWindowRun"
-                    description="Run SAST analysis and get LLM explanation"/>
-
             <action id="FixMySAST.Import"
                     class="de.fraunhofer.iem.fixmysast.actions.ImportFileAction"
                     text="Import File"
