@@ -54,7 +54,7 @@ object PromptTemplate {
                 - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
                 Your response must be a YAML formatted document with these top-level keys:
                  
-                Overview: Overview of the issue in simple words.
+                Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
                 Explanation: explanation of the error found in the original code
                 ExampleCode: simple new code snippet illustrating the issue
                 ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
@@ -63,7 +63,7 @@ object PromptTemplate {
                 
                 Here is an example of the correct output:
                 
-                Overview: "Overview of the issue in simple words."
+                Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
                 Explanation: "explanation of the error found in the original code."
                 ExampleCode: |
                   public void exampleMethod() {
@@ -114,7 +114,7 @@ object PromptTemplate {
             
             Your response must be a YAML formatted document with these top-level keys:
              
-            Overview: Overview of the issue in simple words.
+            Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
             Explanation: concise technical explanation of the error found in the original code
             ExampleCode: representative new code snippet illustrating the issue
             ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
@@ -123,7 +123,7 @@ object PromptTemplate {
                 
             Here is an example of the correct output:
                 
-            Overview: "Overview of the issue in simple words."
+            Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
             Explanation: "concise technical explanation of the error found in the original code."
             ExampleCode: |
               public void exampleMethod() {
@@ -174,14 +174,14 @@ object PromptTemplate {
                 
                 Your response must be a YAML formatted document with these top-level keys:
                  
-                Overview: Overview of the issue in simple words.
+                Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
                 Explanation: explanation of the error found in the original code
                 
                 ---
                 
                 Here is an example of the correct output:
                 
-                Overview: "Overview of the issue in simple words."
+                Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
                 Explanation: "explanation of the error found in the original code."
                  
                 ---
