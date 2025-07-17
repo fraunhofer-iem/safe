@@ -431,9 +431,11 @@ $tagHtml
  
           ${if (exampleHtml.isNotBlank()) """
 <section>
-<h2>Example&nbsp;Code</h2>
+<details>
+<summary><h2 style="display: inline;">Example&nbsp;Code</h2></summary>
               $exampleCodeExplanation
               $exampleHtml
+</details>
 </section>""" else ""}
  
 <section>
