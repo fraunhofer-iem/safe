@@ -116,11 +116,13 @@ class ExplanationPanel(project: Project) : JPanel() {
     private fun getSectionsFromYaml(response: String?): Explanation {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
+        val overviewSection = data["Overview"] as? String ?: error("Explanation missing or not a string")
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
         val exampleSection = data["ExampleCode"] as? String ?: " "
         val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
 
         return Explanation(
+            overviewSection,
             explanationSection,
             exampleSection.trimStart(),
             exampleCodeExplanation
@@ -133,7 +135,8 @@ class ExplanationPanel(project: Project) : JPanel() {
         println(issue.explanation)
 
         ReadAction.nonBlocking<String> {
-            val (explanation,
+            val (overview,
+                explanation,
                 exampleCode,
                 exampleCodeExplanation) = getSectionsFromYaml(
                 issue.explanation
@@ -142,6 +145,7 @@ class ExplanationPanel(project: Project) : JPanel() {
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
             val temp = wrapHtmlWithStyle(
+                overview,
                 explanation,
                 exampleCode,
                 exampleCodeExplanation,
@@ -153,6 +157,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.cwe,
                 issue.owasp,
                 issue.impact,
+                issue.location.codeSnippet,
                 jsQuery
             )
             temp
@@ -240,6 +245,7 @@ class ExplanationPanel(project: Project) : JPanel() {
     //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
 //String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
     private fun wrapHtmlWithStyle(
+        overview: String,
         explanation: String,
         exampleCodeRaw: String,
         exampleCodeExplanation: String,
@@ -251,6 +257,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         cwe: List<String>?,
         owasp: List<String>?,
         impact: String?,
+        codeSnippet: String?,
         jsQuery: JBCefJSQuery
     ): String {
 
@@ -284,6 +291,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         }
 
         val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
+        val originalCodeSnippet = codeSnippet?.let { sendStringtoHtmlFormat(it).trimStart() }
 
         //Formatting for multiple OWASP tags
         val owaspButtonHtml = owasp?.joinToString(separator = "\n") { tag ->
@@ -411,8 +419,14 @@ $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
  
           <section>
+<h2>Overview</h2>
+            $overview
+</section>
+
+<section>
 <h2>Explanation</h2>
             $explanation
+            $originalCodeSnippet
 </section>
  
           ${if (exampleHtml.isNotBlank()) """

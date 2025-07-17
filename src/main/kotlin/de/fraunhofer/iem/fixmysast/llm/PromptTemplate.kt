@@ -53,15 +53,17 @@ object PromptTemplate {
                 - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
                 Your response must be a YAML formatted document with these top-level keys:
                  
-                Explanation: explanation of the given error
-                ExampleCode: simple code snippet illustrating the issue
+                Overview: Overview of the issue in simple words.
+                Explanation: explanation of the error found in the original code
+                ExampleCode: simple new code snippet illustrating the issue
                 ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
                 
                 ---
                 
                 Here is an example of the correct output:
                 
-                Explanation: "explanation of the given error."
+                Overview: "Overview of the issue in simple words."
+                Explanation: "explanation of the error found in the original code."
                 ExampleCode: |
                   public void exampleMethod() {
                       System.out.println("This is the example code.");
@@ -111,15 +113,17 @@ object PromptTemplate {
             
             Your response must be a YAML formatted document with these top-level keys:
              
-            Explanation: concise technical explanation of the given error
-            ExampleCode: representative code snippet illustrating the issue
+            Overview: Overview of the issue in simple words.
+            Explanation: concise technical explanation of the error found in the original code
+            ExampleCode: representative new code snippet illustrating the issue
             ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
             
             ---
                 
             Here is an example of the correct output:
                 
-            Explanation: "explanation of the given error."
+            Overview: "Overview of the issue in simple words."
+            Explanation: "concise technical explanation of the error found in the original code."
             ExampleCode: |
               public void exampleMethod() {
                 System.out.println("Hello, world!");
@@ -169,13 +173,15 @@ object PromptTemplate {
                 
                 Your response must be a YAML formatted document with these top-level keys:
                  
-                Explanation: explanation of the given error
+                Overview: Overview of the issue in simple words.
+                Explanation: explanation of the error found in the original code
                 
                 ---
                 
                 Here is an example of the correct output:
                 
-                Explanation: "explanation of the given error."
+                Overview: "Overview of the issue in simple words."
+                Explanation: "explanation of the error found in the original code."
                  
                 ---
                 
