@@ -43,17 +43,24 @@ class ResultsTree(project: Project) : Tree() {
 
         //Load last file
         if (PropertiesComponent.getInstance(project)
-                .isValueSet("de.fraunhofer.iem.fixmysast.actions.SastFile")
+                .isValueSet("de.fraunhofer.iem.fixmysast.file")
         ) {
 
-            // Load SARIF results from given path
-            //Note: Choose between JsonParser or SASTParser here
-            val parsedResult = JsonParser.parse(
-                project, PropertiesComponent.getInstance(project)
-                    .getValue("de.fraunhofer.iem.fixmysast.actions.SastFile")!!
+            // Load SAST results from given path
+            addTreeNodes(
+                parseFile(
+                    PropertiesComponent.getInstance(project)
+                        .getValue("de.fraunhofer.iem.fixmysast.file")!!,
+                    project
+                )
             )
-            updateTree(parsedResult)
             explainResults()
+        } else {
+            model = null
+            this.emptyText.setText(
+                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
+                SimpleTextAttributes.REGULAR_ATTRIBUTES
+            )
         }
 
         addMouseListener(object : MouseAdapter() {
@@ -73,16 +80,35 @@ class ResultsTree(project: Project) : Tree() {
         })
 
         //Subscribe to the response topic to get response
-        bus.connect().subscribe(ParseFileNotifier.PARSE_SARIF_FILE, object : ParseFileNotifier {
-            override fun getSastResults(results: Results) {
+        bus.connect().subscribe(
+            ParseFileNotifier.PARSE_SARIF_FILE,
+            object : ParseFileNotifier {
 
-                updateTree(results)
-                explainResults()
-            }
-        })
+                override fun parse(sastFile: String) {
+                    addTreeNodes(parseFile(sastFile, project))
+                    PropertiesComponent.getInstance(project)
+                        .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
+
+                    explainResults()
+                }
+            })
     }
 
-    fun updateTree(results: Results) {
+    fun parseFile(resultsFile: String, project: Project): Results {
+
+        if (resultsFile.endsWith(".json")
+        ) {
+            return JsonParser.parse(
+                project, resultsFile
+            )
+        } else {
+            return SarifParser.parse(
+                project, resultsFile
+            )
+        }
+    }
+
+    fun addTreeNodes(results: Results) {
 
         this.results = results
         rootNode.removeAllChildren()

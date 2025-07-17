@@ -11,6 +11,6 @@ interface ParseFileNotifier {
                 ParseFileNotifier::class.java)
     }
 
-    fun getSastResults(results: Results)
+    fun parse(sastFile: String)
 
 }
