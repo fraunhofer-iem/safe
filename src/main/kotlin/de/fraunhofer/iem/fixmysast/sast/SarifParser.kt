@@ -75,7 +75,17 @@ object SarifParser {
                     val tags = run.tool.driver.rules?.find { it.id == result.ruleId }?.properties?.get("tags")
                         ?.mapNotNull { it.asText() } ?: emptyList<String>()
                     val codeSnippet = extractCodeSnippet(project, result)
-                    issues.add(Issue(type, message, tags, codeSnippet))
+                    issues.add(
+                        Issue(
+                            type, message, tags,
+                            false,
+                            null,
+                            result.locations?.get(0)?.physicalLocation?.artifactLocation?.uri,
+                            result.locations?.get(0)?.physicalLocation?.region?.startLine,
+                            result.locations?.get(0)?.physicalLocation?.region?.endLine,
+                            codeSnippet
+                        )
+                    )
                 }
             }
 

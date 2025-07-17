@@ -26,3 +26,14 @@ data class Issue(
     var explanation: String = "",
 )
 
+data class DataFlowElement(
+    val name: String,
+    val startOffset: Int,
+    val endOffset: Int,
+    val type: DataFlowCategory
+)
+
+enum class DataFlowCategory {
+    SOURCE, PROPAGATOR, SINK
+}
+

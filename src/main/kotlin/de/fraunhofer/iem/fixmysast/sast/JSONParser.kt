@@ -1,14 +1,13 @@
 package de.fraunhofer.iem.fixmysast.sast
-import com.intellij.openapi.project.Project
-import java.io.File
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-
+import com.intellij.openapi.project.Project
 import org.jetbrains.annotations.NonNls
+import java.io.File
 
 
 @JsonIgnoreProperties(ignoreUnknown = true)
