@@ -3,9 +3,11 @@ package de.fraunhofer.iem.fixmysast.ui
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
+import com.intellij.util.ui.JBUI
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.sast.Issue
@@ -20,23 +22,31 @@ import javax.swing.JPanel
 //Helper function for aesthetics
 class ExplanationPanel(project: Project) : JPanel() {
 
+    val sastResult = JBLabel()
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
 
     init {
         layout = BorderLayout()
 
+        sastResult.setBorder(JBUI.Borders.empty(10))
+        sastResult.isAllowAutoWrapping = true
+        add(sastResult, BorderLayout.NORTH)
+
         // Use JCEF browser for rich HTML content
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         add(browser.component, BorderLayout.CENTER)
 
         //Subscribe to the response topic to get response
-        bus.connect().subscribe(ExplanationNotifier.SHOW_EXPLANATION_TOPIC, object : ExplanationNotifier {
+        bus.connect().subscribe(
+            ExplanationNotifier.SHOW_EXPLANATION_TOPIC,
+            object : ExplanationNotifier {
 
-            override fun showExplanation(issue: Issue) {
-                showHtml(issue)
-            }
-        })
+                override fun showExplanation(issue: Issue) {
+                    sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
+                    showHtml(issue)
+                }
+            })
     }
 
     /*
@@ -305,12 +315,6 @@ class ExplanationPanel(project: Project) : JPanel() {
 <h1>$title</h1>
 $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
-
-<h2>Information provided by the SAST</h2>
-          <dl>
-<dt>Type:</dt><dd>$type</dd> <br />
-<dt>Description:</dt><dd>$message</dd>
-</dl>
  
           <section>
 <h2>Explanation</h2>
