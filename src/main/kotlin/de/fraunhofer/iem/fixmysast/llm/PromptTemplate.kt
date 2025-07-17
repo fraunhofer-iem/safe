@@ -45,7 +45,7 @@ object PromptTemplate {
     private fun buildBeginnerPrompt(issue: Issue): String {
         return """
                 You are an expert in software security. Explain the given error from the static analysis tool to a novice software developer in a way that helps them understand the security issue.
-                 
+                 You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an NOVICE DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
                 ---
                 You must follow the below guidelines:
                 - The explanation must not exceed 750 words. 
@@ -101,7 +101,7 @@ object PromptTemplate {
 
     private fun buildIntermediatePrompt(issue: Issue): String {
         return """
-            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an intermediate-level developer. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
+            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an INTERMEDIATE-LEVEL DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
  
             ---
             You must follow the below guidelines:
@@ -159,8 +159,7 @@ object PromptTemplate {
 
     private fun buildAdvancedPrompt(issue: Issue): String {
         return """
-            You are an expert in software security. Explain the given error from the static analysis tool to an advanced-level developer in a way that helps them understand the security issue.
- 
+            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an ADVANCED-LEVEL DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
                 ---
                 You must follow the below guidelines:
                 - The explanation must not exceed 750 words. 
