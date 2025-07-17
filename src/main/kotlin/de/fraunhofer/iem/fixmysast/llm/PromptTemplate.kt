@@ -77,7 +77,7 @@ object PromptTemplate {
                  
                 Original code where the issue was found by the static analysis tool:
                 ```
-                ${issue.codeSnippet}
+                ${issue.location.codeSnippet}
                 ```
         """.trimIndent()
     }
@@ -145,7 +145,7 @@ object PromptTemplate {
              
             Original code where the issue was found by the static analysis tool:
             ```
-            ${issue.codeSnippet}
+            ${issue.location.codeSnippet}
             ```
         """.trimIndent()
     }
@@ -203,7 +203,7 @@ object PromptTemplate {
                  
                 Original code where the issue was found by the static analysis tool:
                 ```
-                ${issue.codeSnippet}
+                ${issue.location.codeSnippet}
                 ```
         """.trimIndent()
     }

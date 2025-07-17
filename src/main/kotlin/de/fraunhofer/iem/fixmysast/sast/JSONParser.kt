@@ -1,4 +1,5 @@
 package de.fraunhofer.iem.fixmysast.sast
+
 import com.intellij.openapi.project.Project
 import java.io.File
 
@@ -67,17 +68,16 @@ object JsonParser {
             val issues = mutableListOf<Issue>()
 
             jsonReport.results.forEach { r ->
-                val type    = r.checkId ?: "Unknown"
+                val type = r.checkId ?: "Unknown"
                 val message = r.extra.message
-                val tags    = (r.extra.metadata.owasp ?: emptyList()) +
-                        (r.extra.metadata.cwe   ?: emptyList())
+                val tags = (r.extra.metadata.owasp ?: emptyList()) +
+                        (r.extra.metadata.cwe ?: emptyList())
                 val explanation = r.extra.message
                 val confidence = r.extra.metadata.confidence
                 val cwe = r.extra.metadata.cwe ?: emptyList()
                 val severity = r.extra.severity ?: "Unknown"
                 val owasp = r.extra.metadata.owasp ?: emptyList()
                 val impact = r.extra.metadata.impact ?: ""
-
 
                 val codeSnippet = extractCodeSnippet(
                     project,
@@ -95,8 +95,17 @@ object JsonParser {
 //                val confidence: String,
 //                val severity: String,
 //                val cwe: List<String>
-                    issues.add(Issue(type, message, tags, codeSnippet, explanation, confidence, severity, cwe, owasp, impact))
-                }
+                issues.add(
+                    Issue(
+                        type, message, tags,
+                        IssueLocation(
+                            r.path, codeSnippet,
+                            r.start.line,
+                            r.end.line
+                        ), explanation, confidence, severity, cwe, owasp, impact
+                    )
+                )
+            }
 
             return Results(
                 jsonFile.absolutePath,
@@ -121,7 +130,7 @@ object JsonParser {
         if (!file.exists()) return "File not found: $relativePath"
 
         val lines = file.readLines()
-        val end   = endLine.coerceAtMost(lines.size)
+        val end = endLine.coerceAtMost(lines.size)
 
         return if (startLine in 1..lines.size)
             lines.subList(startLine - 1, end).joinToString("\n")
