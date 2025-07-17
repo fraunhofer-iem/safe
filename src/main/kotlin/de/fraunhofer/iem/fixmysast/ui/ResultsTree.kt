@@ -112,10 +112,8 @@ class ResultsTree(project: Project) : Tree() {
                 SwingUtilities.invokeLater {
                     resultsModel.nodeChanged(issueNode)
                     this.repaint()
-                    println("Setting colors up")
                 }
-                println("Response for: " + issue.type)
-        }
+            }
         }
     }
 }

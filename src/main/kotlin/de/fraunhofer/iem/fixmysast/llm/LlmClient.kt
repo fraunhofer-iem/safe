@@ -24,16 +24,24 @@ object LlmClient {
         val requestBody = buildRequestBody(prompt)
 
         if (explanationCache.containsKey(requestBody)) {
-            println("Found response for: " + issue.type)
+            //println("Found response for: " + issue.type)
             return explanationCache[requestBody]!!
         } else {
-            println("Send request for: "+ issue.type)
+            //println("Send request for: "+ issue.type)
             explanationCache[requestBody] = sendRequest(requestBody)
 
             return explanationCache[requestBody]!!
         }
     }
 
+    fun updateExplanation(issue:Issue): String? {
+        val level = LevelStateService.get().current
+        val prompt = PromptTemplate.update(issue, level)
+        val requestBody = buildRequestBody(prompt)
+        explanationCache[requestBody] = sendRequest(requestBody)
+
+        return explanationCache[requestBody]!!
+    }
     fun sendRequest(requestBody: String): String {
 
         //val future = CompletableFuture<String>()

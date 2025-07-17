@@ -1,13 +1,19 @@
 package de.fraunhofer.iem.fixmysast.ui
 
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
+import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
+import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
@@ -17,11 +23,13 @@ import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
 import javax.swing.JPanel
 
+
 //Helper function for aesthetics
 class ExplanationPanel(project: Project) : JPanel() {
 
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
+    private var currentIssue: Issue? = null
 
     init {
         layout = BorderLayout()
@@ -30,14 +38,65 @@ class ExplanationPanel(project: Project) : JPanel() {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         add(browser.component, BorderLayout.CENTER)
 
+        val jsQuery = JBCefJSQuery.create(browser)
+        Disposer.register(browser, jsQuery)
+
+        // Handle thumbs up/down feedback
+        jsQuery.addHandler { feedback ->
+            val issue = currentIssue
+            if(issue == null)
+            {
+                println("Issue is null :)")
+            }
+            if (feedback == "bad" && issue != null) {
+                println("User rated response negatively")
+                //TODO: call LLM again
+                browser.loadHTML("<p><i>Re-requesting a better explanation...</i></p>")
+
+                println(issue.explanation)
+
+                //Re-query LLM with improved prompt
+                val oldResp = issue.explanation
+                val newResp = LlmClient.updateExplanation(issue)
+
+                try {
+                    getSectionsFromYaml(newResp)
+                    issue.explanation = newResp
+                    Notifications.Bus.notify(
+                        Notification(
+                            "Nofication",
+                            "Messages.Title.Suggest.NewTrainingFile",
+                            "Successfully re-generated new response!",
+                            NotificationType.INFORMATION
+                        )
+                    )
+                } catch (e: Exception) {
+                    issue.explanation = oldResp
+                    Notifications.Bus.notify(
+                        Notification(
+                            "Nofication",
+                            "Messages.Title.Suggest.NewTrainingFile",
+                            "Failed to re-generated new response. Please try after sometime",
+                            NotificationType.WARNING
+                        )
+                    )
+                }
+
+                showHtml(issue, jsQuery)
+            }
+            null
+        }
+
         //Subscribe to the response topic to get response
         bus.connect().subscribe(ExplanationNotifier.SHOW_EXPLANATION_TOPIC, object : ExplanationNotifier {
 
             override fun showExplanation(issue: Issue) {
-                showHtml(issue)
+                currentIssue = issue
+                showHtml(issue, jsQuery)
             }
         })
-    }
+
+      }
 
     /*
         Instruct chat respones to produce YAML
@@ -62,7 +121,11 @@ class ExplanationPanel(project: Project) : JPanel() {
         )
     }
 
-    private fun showHtml(issue: Issue) {
+    private fun showHtml(issue: Issue, jsQuery: JBCefJSQuery) {
+        println("PRINT INSIDE SHOW HTML")
+
+        println(issue.explanation)
+
         ReadAction.nonBlocking<String> {
             val (explanation,
                 exampleCode,
@@ -72,7 +135,6 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.explanation
             )
 
-            //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
             val temp = wrapHtmlWithStyle(
                 explanation,
@@ -87,11 +149,25 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.confidence,
                 issue.cwe,
                 issue.owasp,
-                issue.impact
+                issue.impact,
+                jsQuery
             )
             temp
         }.finishOnUiThread(ModalityState.any()) { html ->
-            browser.loadHTML(html)
+
+            val htmlWithBridge = html.replace(
+                "</body>,",
+                """
+                <script>
+                window.feedbackBridge = function(feedback) {
+                ${jsQuery.inject("feedback")}
+                }
+                </script>
+                </body>
+            """.trimIndent()
+            )
+            println("Inject string: ${jsQuery.inject("feedback")}")
+            browser.loadHTML(htmlWithBridge)
         }.submit(AppExecutorUtil.getAppExecutorService())
     }
 
@@ -158,8 +234,6 @@ class ExplanationPanel(project: Project) : JPanel() {
     }
 
 
-    //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
-//String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
     private fun wrapHtmlWithStyle(
         explanation: String,
         exampleCodeRaw: String,
@@ -173,7 +247,8 @@ class ExplanationPanel(project: Project) : JPanel() {
         confidence: String?,
         cwe: List<String>?,
         owasp: List<String>?,
-        impact: String?
+        impact: String?,
+        jsQuery: JBCefJSQuery
     ): String {
 
         /* ------------------------------------------------------------------ */
@@ -208,14 +283,15 @@ class ExplanationPanel(project: Project) : JPanel() {
         val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
         val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
 
+        //Formatting for multiple OWASP tags
         val owaspButtonHtml = owasp?.joinToString(separator = "\n") { tag ->
             """<button class="tag tag-owasp" disabled>${tag}</button>  """
         }
-
+        //Formatting for all buttons on screen
         val tagHtml = """
             <div class="tag-container" style="margin-bottom: 8px;">
             <button class="tag tag-${severity?.lowercase()}">Severity: ${severity}</button>
-            <button class="tag tag-${confidence?.lowercase()}">Confidence: ${confidence}</button>
+            <button class="tag tag-confidence-${confidence?.lowercase()}">Confidence: ${confidence}</button>
             <button class="tag tag-${impact?.lowercase()}">Impact: ${impact}</button>
             $owaspButtonHtml
             </div>
@@ -294,11 +370,27 @@ class ExplanationPanel(project: Project) : JPanel() {
 .tag-low         { background-color: #4CAF50; color: #000; }
 .tag-medium      { background-color: #f9c74f; color: #000; }
 .tag-high        { background-color: #d73a49; }
+.tag-confidence-low         { background-color: #d73a49; }
+.tag-confidence-medium      { background-color: #f9c74f; color: #000; }
+.tag-confidence-high        { background-color: #4CAF50; color: #000; }
 .tag-note        { background-color: #4CAF50; color: #000; }
 .tag-warning     { background-color: #f9c74f; color: #000; }
 .tag-error       { background-color: #d73a49; }
 .tag-critical    { background-color: #6f42c1; }
 .tag-owasp       { background-color: #007acc; }
+.feedback-btn {
+    padding: 6px 12px;
+    margin: 4px;
+    border: none;
+    border-radius: 6px;
+    background-color: #003366;
+    color: white;
+    font-size: 14 px;
+    cursor: pointer;
+    }
+.feedback-btn:hover {
+    background-color: #0055aa
+    }
 </style>
 </head>
 <body>
@@ -330,6 +422,19 @@ $tagHtml
 $fixSuggestionExplanation
 $fixSuggestion
 </section>""" else ""}
+
+<section id = feedback-section" style="margin-top: 24px;">
+<h2> Was this explanation helpful?</h2>
+<button class="feedback-btn" onclick="window.feedbackBridge('good')">👍 Yes</button>
+<button class="feedback-btn" onclick="window.feedbackBridge('bad')">👎 No</button>
+</section>
+
+<script>
+window.feedbackBridge = function (feedback) {
+alert("Calling Kotlin with feedback: " + feedback);
+${jsQuery.inject("feedback")}
+}
+</script>
 </body>
 </html>
     """.trimIndent()

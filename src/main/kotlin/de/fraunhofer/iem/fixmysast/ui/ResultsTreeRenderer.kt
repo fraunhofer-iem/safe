@@ -20,7 +20,6 @@ class ResultsTreeRenderer : ColoredTreeCellRenderer() {
         row: Int,
         hasFocus: Boolean
     ) {
-        print("Renderer called for value: $value")
         setIcon(AllIcons.General.BalloonInformation)
 
         if (value is DefaultMutableTreeNode) {
@@ -31,7 +30,7 @@ class ResultsTreeRenderer : ColoredTreeCellRenderer() {
                 val results: Results = node
                 icon = AllIcons.General.BalloonInformation
 
-                println("making rende")
+                //println("making rende")
 
 
            append(results.issues.count().toString() + " Problems")
@@ -48,7 +47,7 @@ class ResultsTreeRenderer : ColoredTreeCellRenderer() {
                 else
                     AllIcons.General.InspectionsOK
                 val testIcon = AllIcons.General.BalloonInformation
-                print("Test icon is null? ${testIcon == null}")
+                //print("Test icon is null? ${testIcon == null}")
 
             }
         }

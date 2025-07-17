@@ -1,5 +1,6 @@
 package de.fraunhofer.iem.fixmysast.llm
 
+import com.thoughtworks.xstream.mapper.Mapper
 import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
@@ -15,13 +16,39 @@ object PromptTemplate {
         ExpertiseLevel.ADVANCED -> buildAdvancedPrompt(issue)
     }
 
+    fun update(issue: Issue, level: ExpertiseLevel): String{
+        println("Inside the update Prompt Function!")
+        var update = """
+        Previously, you have provided the below explanation for upper issue. 
+        The user has rated this as a poor explanation.
+        Can you please provide a better explanation for the same issue with the output guideline as provided above.
+        ---
+        ${issue.explanation}
+        ---
+        Please improve it for clarity and usefulness."""
+
+        var finalPrompt = ""
+
+        if(level == ExpertiseLevel.BEGINNER)
+        {
+            finalPrompt = buildBeginnerPrompt(issue) + update
+        }
+        else if(level == ExpertiseLevel.INTERMEDIATE){
+            finalPrompt = buildIntermediatePrompt(issue) + update
+        }
+        else{
+            finalPrompt = buildAdvancedPrompt(issue) + update
+        }
+        return finalPrompt
+    }
+
     private fun buildBeginnerPrompt(issue: Issue): String {
         return """
                 You are an expert in software security. Explain the given error from the static analysis tool to a novice software developer in a way that helps them understand the security issue.
                  
                 ---
                 You must follow the below guidelines:
-                - The explanation must not exceed 500 words. 
+                - The explanation must not exceed 750 words. 
                 - Provide the explanation as a basic string value. 
                 - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
                 - Your CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
@@ -88,7 +115,7 @@ object PromptTemplate {
  
             ---
             You must follow the below guidelines:
-            - The explanation must not exceed 500 words.
+            - The explanation must not exceed 750 words.
             - Provide the explanation as a basic string value.
             - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
             - Your CodeFixSuggestion must be the code fix to the original code that contains the issue found by the static analysis tool. This code fix suggestion is not for the example code provided by you.
@@ -156,7 +183,7 @@ object PromptTemplate {
  
                 ---
                 You must follow the below guidelines:
-                - The explanation must not exceed 500 words. 
+                - The explanation must not exceed 750 words. 
                 - Provide the explanation as a basic string value. 
                 - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
                 - While suggesting the code fix in CodeFixSuggestion, if you suggest any sanitizer, input validator, etc. please suggest the valid sanitizer or input validator from the trusted library. DO NO SUGGEST CUSTOM SANITIZER OR INPUT VALIDATOR.
