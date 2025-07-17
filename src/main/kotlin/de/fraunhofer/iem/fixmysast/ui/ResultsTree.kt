@@ -3,42 +3,33 @@ package de.fraunhofer.iem.fixmysast.ui
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.messages.MessageBus
+import de.fraunhofer.iem.fixmysast.PluginBundle
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser
-import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.serialization.json.Json
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.concurrent.Executors
-import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
-import javax.swing.tree.TreeNode
 
 
 class ResultsTree(project: Project) : Tree() {
 
-    var isExplained: Boolean = false
     private lateinit var results: Results
     val bus: MessageBus = project.messageBus
-    var resultsModel: DefaultTreeModel
-    var rootNode: DefaultMutableTreeNode
 
     init {
 
-        rootNode = DefaultMutableTreeNode("Vulnerabilities")
-        emptyText.setText("No SAST file selected.")
-
-        resultsModel = DefaultTreeModel(rootNode)
-        model = resultsModel
         cellRenderer = ResultsTreeRenderer()
 
         //Load last file
@@ -111,15 +102,19 @@ class ResultsTree(project: Project) : Tree() {
     fun addTreeNodes(results: Results) {
 
         this.results = results
-        rootNode.removeAllChildren()
 
-        val resultsTreeNode = DefaultMutableTreeNode(results.filePath)
+        val rootNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + " Problems")
+        model = DefaultTreeModel(rootNode)
+
+        val resultsTreeNode =
+            DefaultMutableTreeNode(results.tool + ": " + results.issues.count().toString() + " Problems")
 
         for (issue in results.issues) {
-            resultsTreeNode.add(DefaultMutableTreeNode(issue))
+            val issueNode = DefaultMutableTreeNode(issue)
+            issueNode.add(DefaultMutableTreeNode(issue.location))
+            resultsTreeNode.add(issueNode)
         }
         rootNode.add(resultsTreeNode)
-        resultsModel.reload()
     }
 
 
@@ -129,19 +124,10 @@ class ResultsTree(project: Project) : Tree() {
         val scope = CoroutineScope(dispatcher)
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            val fileNode = rootNode.lastChild as? DefaultMutableTreeNode ?: return@executeOnPooledThread
-            results.issues.forEachIndexed {index, issue ->
+            results.issues.forEachIndexed { index, issue ->
 
-                issue.explanation  = LlmClient.getExplanation(issue).toString()
-
-                val issueNode = fileNode.getChildAt(index) as DefaultMutableTreeNode
-                SwingUtilities.invokeLater {
-                    resultsModel.nodeChanged(issueNode)
-                    this.repaint()
-                    println("Setting colors up")
-                }
-                println("Response for: " + issue.type)
-        }
+                issue.explanation = LlmClient.getExplanation(issue).toString()
+            }
         }
     }
 }
