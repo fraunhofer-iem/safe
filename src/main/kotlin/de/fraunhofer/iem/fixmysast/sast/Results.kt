@@ -16,7 +16,12 @@ data class Issue(
     val type: String,
     val message: String,
     val tags: List<String>,
+    val hasDataFlowTrace: Boolean,
+    val dataFlowTrace: List<DataFlowElement>?,
+    val path: String?,
     //Add line numbers
+    val startLine: Int?,
+    val endLine: Int?,
     val codeSnippet: String,
     var explanation: String = "",
 )
