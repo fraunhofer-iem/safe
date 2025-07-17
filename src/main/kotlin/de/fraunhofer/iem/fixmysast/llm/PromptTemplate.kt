@@ -43,6 +43,7 @@ object PromptTemplate {
     }
 
     private fun buildBeginnerPrompt(issue: Issue): String {
+        //TODO: Once the developers security experience leve is identified we can merge the three prompts into one single prompt
         return """
                  You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an NOVICE DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
                  
