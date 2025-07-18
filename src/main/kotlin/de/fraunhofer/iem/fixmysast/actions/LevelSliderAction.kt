@@ -1,39 +1,24 @@
 package de.fraunhofer.iem.fixmysast.actions
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
+import com.intellij.notification.Notifications
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
+import de.fraunhofer.iem.fixmysast.ExplanationToolWindow
 import de.fraunhofer.iem.fixmysast.llm.LevelStateService
 import javax.swing.JComponent
 import javax.swing.JOptionPane
 import javax.swing.JSlider
 
-//One radio-button for a single level
-//class LevelToggleAction(private val level: ExpertiseLevel) : ToggleAction(level.label) {
-//
-//    override fun isSelected(e: AnActionEvent): Boolean =
-//        LevelStateService.get().current == level
-//
-//    override fun setSelected(e: AnActionEvent, state: Boolean) {
-//        if (state) LevelStateService.get().current = level
-//    }
-//}
-//
-//// Container holds 3 LevelToggleAction items
-//class LevelActionGroup : DefaultActionGroup() {
-//    init {
-//        isPopup = true
-//        templatePresentation.text = "Level"
-//        add(LevelToggleAction(ExpertiseLevel.BEGINNER))
-//        add(LevelToggleAction(ExpertiseLevel.INTERMEDIATE))
-//        add(LevelToggleAction(ExpertiseLevel.ADVANCED))
-//    }
-//}
-
-
 class LevelSliderAction : AnAction("Set Expertise Level") {
     override fun actionPerformed(e: AnActionEvent){
 
         val project = e.project ?: return
+
+        val props = PropertiesComponent.getInstance(project)
+
+        val previousLevel = props.getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull()
 
         val slider = JSlider(0, 10, LevelStateService.get().current)
         slider.majorTickSpacing = 1
@@ -49,11 +34,20 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
         )
 
         if (result == JOptionPane.OK_OPTION) {
-            LevelStateService.get().current= slider.value
+            val newLevel = slider.value
+            props.setValue("de.fraunhofer.iem.fixmysast.expertiseValue", newLevel.toString())
 
-            PropertiesComponent.getInstance(project)
-                .setValue("de.fraunhofer.iem.fixmysast.expertiseValue", slider.value.toString())
+            if (newLevel != previousLevel) {
+                Notifications.Bus.notify(
+                    Notification(
+                    "FixMySAST",
+                    "Re-generating",
+                    "Regenerating the explanation. Please wait.",
+                    NotificationType.INFORMATION
+                ),
+                    project)
+                ExplanationToolWindow.resultsTree?.refreshTree(project)
+            }
         }
-
     }
 }
