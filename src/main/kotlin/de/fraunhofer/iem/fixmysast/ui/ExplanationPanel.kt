@@ -6,6 +6,9 @@ import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
@@ -15,6 +18,7 @@ import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import com.intellij.util.ui.JBUI
+import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
@@ -30,12 +34,13 @@ import javax.swing.JPanel
 
 
 //Helper function for aesthetics
-class ExplanationPanel(project: Project) : JPanel() {
+class ExplanationPanel(private val project: Project) : JPanel() {
 
     val sastResult = JBLabel()
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
     private var currentIssue: Issue? = null
+    private var editor: Editor? = null
 
     init {
         layout = BorderLayout()
@@ -112,6 +117,15 @@ class ExplanationPanel(project: Project) : JPanel() {
                     sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
                     currentIssue = issue
                     showHtml(issue,jsQuery)
+                }
+            })
+
+        bus.connect().subscribe(
+            DataflowNotifier.SHOW_EDITOR_TOPIC,
+            object : DataflowNotifier {
+
+                override fun showEditor(issue: Issue) {
+                    showFileContent(issue)
                 }
             })
     }
@@ -465,5 +479,41 @@ ${jsQuery.inject("feedback")}
 </body>
 </html>
     """.trimIndent()
+    }
+
+    fun showFileContent(issue: Issue) {
+        removeAll()
+        removeEditorIfPresent()
+
+        val relativePath = issue.location.fileName ?: return
+        val absolutePath = "${project.basePath}/$relativePath"
+        val fileContent = java.io.File(absolutePath ?: "").takeIf { it.exists() }?.readText() ?: "File not found."
+
+        val factory = EditorFactory.getInstance()
+        val document: Document = factory.createDocument(fileContent)
+
+        editor = EditorFactory.getInstance().createEditor(document, project).apply{
+            settings.isLineNumbersShown = true
+            settings.isFoldingOutlineShown = true
+            settings.isRightMarginShown = true
+            settings.additionalLinesCount = 2
+        }
+
+        add(editor!!.component, BorderLayout.CENTER)
+
+        revalidate()
+        repaint()
+    }
+
+    private fun removeEditorIfPresent() {
+        editor?.let {
+            EditorFactory.getInstance().releaseEditor(it)
+            editor = null
+        }
+    }
+
+    override fun removeNotify() {
+        super.removeNotify()
+        removeEditorIfPresent()
     }
 }

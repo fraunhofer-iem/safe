@@ -10,6 +10,7 @@ import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.PluginBundle
+import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
@@ -22,11 +23,13 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.concurrent.Executors
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 
 
-class ResultsTree(project: Project) : Tree() {
+class ResultsTree(private val project: Project) : Tree() {
 
     private lateinit var results: Results
     val bus: MessageBus = project.messageBus
@@ -60,16 +63,27 @@ class ResultsTree(project: Project) : Tree() {
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
 
-                val node = lastSelectedPathComponent as DefaultMutableTreeNode?
-
-                if (node != null && node.userObject is Issue) {
-                    val issue = node.userObject as Issue
-
-                    val messageBus = project.getMessageBus()
-                    val publisher: ExplanationNotifier =
-                        messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
-                    publisher.showExplanation(issue)
+//                val node = lastSelectedPathComponent as DefaultMutableTreeNode?
+//
+//                if (node != null && node.userObject is Issue) {
+//                    val issue = node.userObject as Issue
+//
+//                    val messageBus = project.getMessageBus()
+//                    val publisher: ExplanationNotifier =
+//                        messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
+//                    publisher.showExplanation(issue)
+//                }
+                if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3) {
+                    showContextMenu(e)
                 }
+            }
+
+            override fun mousePressed(e: MouseEvent) {
+                if (e.isPopupTrigger) showContextMenu(e)
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) showContextMenu(e)
             }
         })
 
@@ -147,5 +161,34 @@ class ResultsTree(project: Project) : Tree() {
                 )
             }
         }
+    }
+    private fun showContextMenu(e: MouseEvent) {
+        val node = getSelectedNode() ?: return
+        val issue = node.userObject as? Issue ?: return
+
+        val popup = JPopupMenu()
+        val showInEditorItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.OPEN_IN_EDITOR_OPTION").get())
+        val showExplanationItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.SHOW_EXPLANATIONS_OPTION").get())
+
+        showInEditorItem.addActionListener {
+            val messageBus = project.messageBus
+            val publisher: DataflowNotifier =
+                messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
+            publisher.showEditor(issue)
+        }
+        showExplanationItem.addActionListener {
+            val messageBus = project.messageBus
+            val publisher: ExplanationNotifier =
+                messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
+            publisher.showExplanation(issue)
+        }
+
+        popup.add(showInEditorItem)
+        popup.add(showExplanationItem)
+        popup.show(e.component, e.x, e.y)
+    }
+
+    private fun getSelectedNode(): DefaultMutableTreeNode? {
+        return lastSelectedPathComponent as? DefaultMutableTreeNode
     }
 }

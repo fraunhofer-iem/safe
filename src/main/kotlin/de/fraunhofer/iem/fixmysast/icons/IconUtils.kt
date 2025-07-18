@@ -22,7 +22,7 @@ object IconUtils {
             else -> PluginIcons.DEFAULT
         }
     }
-    fun getMethodSRMGutterIcon(methodSignature: String): Icon {
+    fun getSRMGutterIcon(methodSignature: String): Icon {
         val categories = SrmFinder.getSrmAndCweCategory(methodSignature)
         if (categories.size ==1){
             return getIcon(categories.first())
