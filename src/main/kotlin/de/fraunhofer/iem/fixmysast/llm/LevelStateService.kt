@@ -1,56 +1,54 @@
 package de.fraunhofer.iem.fixmysast.llm
 
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.components.*
+import com.intellij.openapi.project.Project
 
 @Service(Service.Level.APP)
-@State(
-    name = "FixMySAST.level",
-    storages = [Storage(StoragePathMacros.NON_ROAMABLE_FILE)]
-)
-class LevelStateService : PersistentStateComponent<LevelStateService.State> {
-    data class State(
-        var level: ExpertiseLevel = ExpertiseLevel.INTERMEDIATE
-    )
 
-    private var state = State()
+class LevelStateService {
+    private val listeners = mutableListOf<(Int) -> Unit>()
+    private var _current: Int = 5
 
-    private val listeners = mutableListOf<(ExpertiseLevel) -> Unit>()
+    var current: Int
+        get() = _current.toInt()
+        set(value) {
+            if(_current == value) return
+                _current = value
+            listeners.forEach { it(value) }
 
-    override fun getState(): State = state
+            }
 
-    override fun loadState(state: State) {
-        this.state = state
-        _current = state.level
+    fun load(project: Project) {
+        val stored = PropertiesComponent.getInstance(project)
+            .getInt("de.fraunhofer.iem.fixmysast.expertiseValue", 5)
+        current = stored
     }
 
-    private var _current: ExpertiseLevel = state.level
+    fun save(project: Project) {
+        PropertiesComponent.getInstance(project)
+            .setValue("de.fraunhofer.iem.fixmysast.expertiseValue", _current.toString())
+    }
 
-    var current: ExpertiseLevel
-        get() = _current
-        set(value) {
-            if (_current == value) return
-            _current = value
-            state.level = value
-            listeners.forEach { it(value) }
-        }
-
-    fun addListener(listener: (ExpertiseLevel) -> Unit) {
+    fun addListener(listener: (Int) -> Unit) {
         listeners.add(listener)
     }
 
-    fun removeListener(listener: (ExpertiseLevel) -> Unit) {
+    fun removeListener(listener: (Int) -> Unit) {
         listeners.remove(listener)
     }
 
     companion object {
         fun get(): LevelStateService = service()
     }
+
 }
 
-enum class ExpertiseLevel(val label: String) {
-    BEGINNER("Beginner"),
-    INTERMEDIATE("Intermediate"),
-    ADVANCED("Advanced");
+typealias ExpertiseLevel = Int
+//enum class ExpertiseLevel(val label: String) {
+//    BEGINNER("Beginner"),
+//    INTERMEDIATE("Intermediate"),
+//    ADVANCED("Advanced");
 
-    override fun toString() = label
-}
+//    override fun toString() = label
+//}

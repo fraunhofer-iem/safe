@@ -10,13 +10,15 @@ import de.fraunhofer.iem.fixmysast.sast.Issue
  * @author Ranjith
  */
 object PromptTemplate {
-    fun build(issue: Issue, level: ExpertiseLevel): String = when (level) {
-        ExpertiseLevel.BEGINNER -> buildBeginnerPrompt(issue)
-        ExpertiseLevel.INTERMEDIATE -> buildIntermediatePrompt(issue)
-        ExpertiseLevel.ADVANCED -> buildAdvancedPrompt(issue)
+    fun build(issue: Issue, level: Int): String {
+        return when (level) {
+            in 0..3 -> buildBeginnerPrompt(issue)
+            in 4..7 -> buildIntermediatePrompt(issue)
+            else -> buildAdvancedPrompt(issue)
+        }
     }
 
-    fun update(issue: Issue, level: ExpertiseLevel): String{
+    fun update(issue: Issue, level: Int): String{
         println("Inside the update Prompt Function!")
         var update = """
         Previously, you have provided the below explanation for upper issue. 
@@ -29,17 +31,29 @@ object PromptTemplate {
 
         var finalPrompt = ""
 
-        if(level == ExpertiseLevel.BEGINNER)
+        if (level > 7)
         {
-            finalPrompt = buildBeginnerPrompt(issue) + update
+            finalPrompt = buildAdvancedPrompt(issue) + update
         }
-        else if(level == ExpertiseLevel.INTERMEDIATE){
+        else if (level <= 7 && level > 4){
             finalPrompt = buildIntermediatePrompt(issue) + update
         }
         else{
-            finalPrompt = buildAdvancedPrompt(issue) + update
+            finalPrompt = buildBeginnerPrompt(issue) + update
         }
         return finalPrompt
+
+//        if(level == ExpertiseLevel.BEGINNER)
+//        {
+//            finalPrompt = buildBeginnerPrompt(issue) + update
+//        }
+//        else if(level == ExpertiseLevel.INTERMEDIATE){
+//            finalPrompt = buildIntermediatePrompt(issue) + update
+//        }
+//        else{
+//            finalPrompt = buildAdvancedPrompt(issue) + update
+//        }
+//        return finalPrompt
     }
 
     private fun buildBeginnerPrompt(issue: Issue): String {

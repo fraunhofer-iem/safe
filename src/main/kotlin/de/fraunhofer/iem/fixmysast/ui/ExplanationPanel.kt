@@ -64,7 +64,7 @@ class ExplanationPanel(project: Project) : JPanel() {
 
                 //Re-query LLM with improved prompt
                 val oldResp = issue.explanation
-                val newResp = LlmClient.updateExplanation(issue)
+                val newResp = LlmClient.updateExplanation(issue, project)
 
                 try {
                     getSectionsFromYaml(newResp)
@@ -72,7 +72,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                     Notifications.Bus.notify(
                         Notification(
                             "Nofication",
-                            "Messages.Title.Suggest.NewTrainingFile",
+                            "FixMySAST Update",
                             "Successfully re-generated new response!",
                             NotificationType.INFORMATION
                         )
@@ -82,7 +82,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                     Notifications.Bus.notify(
                         Notification(
                             "Nofication",
-                            "Messages.Title.Suggest.NewTrainingFile",
+                            "FixMySAST Update",
                             "Failed to re-generated new response. Please try after sometime",
                             NotificationType.WARNING
                         )

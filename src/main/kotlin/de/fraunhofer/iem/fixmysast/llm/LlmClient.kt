@@ -2,7 +2,10 @@ package de.fraunhofer.iem.fixmysast.llm
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.openapi.project.Project
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.llm.LLMConfig
 
 /**
  * This class provides the functionality of sending LLM request and receiving the explanation for the SAST issue.
@@ -17,9 +20,9 @@ object LlmClient {
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
      */
-    fun getExplanation(issue: Issue): String? {
+    fun getExplanation(issue: Issue, project: Project): String? {
 
-        val level = LevelStateService.get().current                 // ← persisted default
+        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull() ?: 5                 // ← persisted default
         val prompt = PromptTemplate.build(issue, level)
         val requestBody = buildRequestBody(prompt)
 
@@ -34,8 +37,8 @@ object LlmClient {
         }
     }
 
-    fun updateExplanation(issue:Issue): String? {
-        val level = LevelStateService.get().current
+    fun updateExplanation(issue:Issue, project: Project): String? {
+        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull() ?: 5
         val prompt = PromptTemplate.update(issue, level)
         val requestBody = buildRequestBody(prompt)
         explanationCache[requestBody] = sendRequest(requestBody)

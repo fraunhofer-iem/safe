@@ -45,7 +45,7 @@ class ResultsTree(project: Project) : Tree() {
                     project
                 )
             )
-            explainResults()
+            explainResults(project)
         } else {
             model = null
             this.emptyText.setText(
@@ -80,7 +80,7 @@ class ResultsTree(project: Project) : Tree() {
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
 
-                    explainResults()
+                    explainResults(project)
                 }
             })
     }
@@ -118,7 +118,7 @@ class ResultsTree(project: Project) : Tree() {
     }
 
 
-    private fun explainResults() {
+    private fun explainResults(project: Project) {
 
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val scope = CoroutineScope(dispatcher)
@@ -126,7 +126,7 @@ class ResultsTree(project: Project) : Tree() {
         ApplicationManager.getApplication().executeOnPooledThread {
             results.issues.forEachIndexed { index, issue ->
 
-                issue.explanation = LlmClient.getExplanation(issue).toString()
+                issue.explanation = LlmClient.getExplanation(issue, project).toString()
             }
         }
     }
