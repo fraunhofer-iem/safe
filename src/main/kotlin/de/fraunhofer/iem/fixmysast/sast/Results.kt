@@ -33,10 +33,23 @@ data class Issue(
     val severity: String? = null,
     val cwe: List<String>? = null,
     val owasp: List<String>? = null,
-    val impact: String? = null
+    val impact: String? = null,
+    val hasDataFlowTrace: Boolean,
+    val dataFlowTrace: List<DataFlowElement>?,
 ) {
     override fun toString(): String {
         return type
     }
+}
+
+data class DataFlowElement(
+    val name: String,
+    val startOffset: Int,
+    val endOffset: Int,
+    val type: DataFlowCategory
+)
+
+enum class DataFlowCategory {
+    SOURCE, PROPAGATOR, SINK
 }
 

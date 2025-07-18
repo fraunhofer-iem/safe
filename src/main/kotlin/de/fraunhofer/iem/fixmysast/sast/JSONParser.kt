@@ -37,6 +37,7 @@ data class Extra(
     val metavars: JsonNode?,
     val metadata: Metadata,
     val severity: String?,
+    @JsonProperty("dataflow_trace") val dataFlowTrace: DataFlowTrace?,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -47,6 +48,33 @@ data class Metadata(
     val impact: String?,
     val confidence: String?,
     @JsonProperty("category") val category: String?
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class DataFlowTrace(
+    @JsonProperty("taint_source") val taintSource: List<Any>,
+    @JsonProperty("taint_sink") val taintSink: List<Any>,
+    @JsonProperty("intermediate_vars") val intermediate: List<IntermediateVar>
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class IntermediateVar(
+    val location: JsonLocation,
+    val content: String
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class JsonLocation(
+    val path: String?,
+    val start: Offset,
+    val end: Offset
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class Offset(
+    val line: Int,
+    val col: Int,
+    val offset: Int
 )
 
 /* --------------------------- JSON‑only parser ----------------------------- */
@@ -102,7 +130,9 @@ object JsonParser {
                             r.path, codeSnippet,
                             r.start.line,
                             r.end.line
-                        ), explanation, confidence, severity, cwe, owasp, impact
+                        ), explanation, confidence, severity, cwe, owasp, impact,
+                        r.extra.dataFlowTrace != null,
+                        if (r.extra.dataFlowTrace != null) resolveDataFlowTrace(r.extra.dataFlowTrace) else null,
                     )
                 )
             }
@@ -136,6 +166,56 @@ object JsonParser {
             lines.subList(startLine - 1, end).joinToString("\n")
         else
             "Invalid line range: $startLine–$endLine"
+    }
+
+    fun resolveDataFlowTrace(trace: DataFlowTrace): List<DataFlowElement> {
+        val elements = mutableListOf<DataFlowElement>()
+
+        // Helper to convert the "list" structure for source or sink to a DataFlowElement
+        fun parseSourceAndSink(taint: List<Any>, category: DataFlowCategory): DataFlowElement? {
+            if (taint.size < 2) return null
+            val details = taint[1]
+            if (details !is List<*>) return null
+            if (details.size < 2) return null
+
+            val location = details[0]
+            val name = details[1]
+
+            // location should be a Map<String, Any>
+            if (location !is Map<*, *>) return null
+            if (name !is String) return null
+
+            val startOffset: Int = (location["start"] as? Map<*, *>)?.get("offset")?.toString()?.toInt() ?: return null
+            val endOffset: Int = (location["end"] as? Map<*, *>)?.get("offset")?.toString()?.toInt() ?: return null
+
+            return DataFlowElement(
+                name = name,
+                startOffset = startOffset,
+                endOffset = endOffset,
+                type = category
+            )
+        }
+
+        // Parse source
+        parseSourceAndSink(trace.taintSource, DataFlowCategory.SOURCE)?.let { elements.add(it) }
+
+        trace.intermediate.forEach { iv ->
+            val startOffset = iv.location.start.offset.toInt()
+            val endOffset = iv.location.end.offset.toInt()
+            elements.add(
+                DataFlowElement(
+                    name = iv.content,
+                    startOffset = startOffset,
+                    endOffset = endOffset,
+                    type = DataFlowCategory.PROPAGATOR
+                )
+            )
+        }
+
+        // Parse sink
+        parseSourceAndSink(trace.taintSink, DataFlowCategory.SINK)?.let { elements.add(it) }
+
+        return elements
     }
 
 }

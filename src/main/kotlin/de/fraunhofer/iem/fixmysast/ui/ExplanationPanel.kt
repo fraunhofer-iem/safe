@@ -1,41 +1,91 @@
 package de.fraunhofer.iem.fixmysast.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.markup.EffectType
+import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.editor.markup.RangeHighlighter
+import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiMethod
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.ui.JBColor
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import com.intellij.util.ui.JBUI
+import de.fraunhofer.iem.fixmysast.PluginBundle
+import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
+import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
+import de.fraunhofer.iem.fixmysast.icons.IconUtils
+import de.fraunhofer.iem.fixmysast.icons.PluginIcons
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.CweMitigationSummary
+import de.fraunhofer.iem.fixmysast.sast.DataFlowCategory
+import de.fraunhofer.iem.fixmysast.sast.DataFlowElement
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.util.MethodUtil
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Dimension
+import java.awt.FlowLayout
+import java.awt.Font
+import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.Icon
+import javax.swing.JButton
+import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JScrollPane
+import kotlin.text.format
 
 
 //Helper function for aesthetics
-class ExplanationPanel(project: Project) : JPanel() {
+class ExplanationPanel(private val project: Project) : JPanel() {
 
     val sastResult = JBLabel()
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
     private var currentIssue: Issue? = null
+    private var editor: Editor? = null
+    private var dataFlowTrace: List<DataFlowElement>? = null
+    private var currentTraceIndex: Int = -1
+    private val navigationPanel = JPanel(FlowLayout(FlowLayout.LEFT))
+    private val dataFlowPanel = JPanel(BorderLayout()).apply {
+        background = JBColor(Color(255, 255, 204), Color(60, 60, 60))
+        border = BorderFactory.createEmptyBorder(5, 10, 5, 10)
+    }
+
+    private val dataFlowLabel = JLabel().apply {
+        foreground = Color.BLACK
+        font = font.deriveFont(Font.PLAIN)
+    }
+
+    var dataFlowHighlight: RangeHighlighter? = null
 
     init {
         layout = BorderLayout()
@@ -112,6 +162,15 @@ class ExplanationPanel(project: Project) : JPanel() {
                     sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
                     currentIssue = issue
                     showHtml(issue,jsQuery)
+                }
+            })
+
+        bus.connect().subscribe(
+            DataflowNotifier.SHOW_EDITOR_TOPIC,
+            object : DataflowNotifier {
+
+                override fun showEditor(issue: Issue) {
+                    showFileContent(issue)
                 }
             })
     }
@@ -465,5 +524,240 @@ ${jsQuery.inject("feedback")}
 </body>
 </html>
     """.trimIndent()
+    }
+
+    /***
+     * Open issue file in the mini-editor.
+     ***/
+    fun showFileContent(issue: Issue) {
+        removeAll()
+        removeEditorIfPresent()
+
+        val relativePath = issue.location.fileName ?: return
+        val absolutePath = "${project.basePath}/$relativePath"
+        val fileContent = java.io.File(absolutePath ?: "").takeIf { it.exists() }?.readText() ?: "File not found."
+        dataFlowTrace = issue.dataFlowTrace
+
+        val factory = EditorFactory.getInstance()
+        val document: Document = factory.createDocument(fileContent)
+
+        editor = EditorFactory.getInstance().createEditor(document, project).apply{
+            settings.isLineNumbersShown = true
+            settings.isFoldingOutlineShown = true
+            settings.isRightMarginShown = true
+            settings.additionalLinesCount = 2
+        }
+
+        add(editor!!.component, BorderLayout.CENTER)
+
+        if (issue.hasDataFlowTrace){
+            currentTraceIndex = -1
+            annotateDataFlow(issue, editor)
+            setupNavigationBar()
+            add(navigationPanel, BorderLayout.NORTH)
+            add(dataFlowPanel, BorderLayout.SOUTH)
+        }
+
+        annotateSRM(fileContent)
+
+        revalidate()
+        repaint()
+    }
+
+    private fun removeEditorIfPresent() {
+        editor?.let {
+            EditorFactory.getInstance().releaseEditor(it)
+            dataFlowLabel.text = ""
+            editor = null
+        }
+    }
+
+    override fun removeNotify() {
+        super.removeNotify()
+        removeEditorIfPresent()
+    }
+
+    /***
+     * Annotates the dataflow_trace (if present) in the mini-editor and adds gutter icons.
+     ***/
+    private fun annotateDataFlow(issue: Issue, editor: Editor?) {
+        val markupModel = editor?.markupModel ?: return
+
+        issue.dataFlowTrace?.forEach { dataFlowElement ->
+            val highlighter = markupModel.addRangeHighlighter(
+                dataFlowElement.startOffset,
+                dataFlowElement.endOffset,
+                HighlighterLayer.ERROR,
+                TextAttributes().apply {
+                    effectType = EffectType.LINE_UNDERSCORE
+                    effectColor = Color.darkGray
+                },
+                HighlighterTargetArea.EXACT_RANGE
+            )
+
+            highlighter.errorStripeTooltip = dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
+
+            val icon: Icon = PluginIcons.SOURCE // Place-holder TODO Change to SRM-specific icon
+
+            highlighter.gutterIconRenderer = object : GutterIconRenderer() {
+                override fun getIcon(): Icon = icon
+                override fun getTooltipText(): String? = dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
+                override fun equals(p0: Any?): Boolean = false
+                override fun hashCode(): Int = icon.hashCode()
+            }
+        }
+    }
+
+    /***
+     * Adds navigation panel and buttons to navigate through the dataflow_trace.
+     */
+    private fun setupNavigationBar() {
+        navigationPanel.removeAll()
+
+        val prevButton = JButton(AllIcons.General.ChevronLeft).apply {
+            toolTipText = "Previous"
+            isEnabled = currentTraceIndex > 0
+            addActionListener {
+                if (currentTraceIndex > 0) {
+                    currentTraceIndex--
+                    scrollToCurrentTrace()
+                    setupNavigationBar()
+                }
+            }
+        }
+
+        val nextButton = JButton(AllIcons.General.ChevronRight).apply {
+            toolTipText = "Next"
+            isEnabled = currentTraceIndex < (dataFlowTrace!!.size - 1)
+            addActionListener {
+                if (currentTraceIndex < dataFlowTrace!!.size - 1) {
+                    currentTraceIndex++
+                    scrollToCurrentTrace()
+                    setupNavigationBar()
+                }
+            }
+        }
+
+        navigationPanel.add(prevButton)
+        navigationPanel.add(nextButton)
+
+        navigationPanel.add(Box.createHorizontalStrut(50))
+
+        val scrollableLabel = JScrollPane(dataFlowLabel).apply {
+            preferredSize = Dimension(500, 40)
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = JScrollPane.VERTICAL_SCROLLBAR_NEVER
+            border = null
+            isOpaque = false
+            viewport.isOpaque = false
+        }
+        navigationPanel.add(scrollableLabel)
+
+        add(navigationPanel, BorderLayout.NORTH)
+        revalidate()
+        repaint()
+    }
+
+    /***
+     * Moves the mini-editor caret to the current dataflow_trace element and highlights it.
+     */
+    private fun scrollToCurrentTrace() {
+        val editor = editor ?: return
+        val markupModel = editor.markupModel
+
+        dataFlowHighlight?.let { previousHighlighter ->
+            if (markupModel.allHighlighters.contains(previousHighlighter)) {
+                markupModel.removeHighlighter(previousHighlighter)
+            }
+        }
+
+        val currentElement = dataFlowTrace?.getOrNull(currentTraceIndex) ?: return
+
+        editor.caretModel.moveToOffset(currentElement.startOffset)
+        editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)
+
+        dataFlowLabel.text = "<html><span style='color:white;'><b>${currentElement.name}</b> is a <i>${currentElement.type.name.lowercase()}</i>.</span></html>"
+
+        val attributes = TextAttributes().apply {
+            backgroundColor = getDataFlowHighlightColor(currentElement.type)
+            effectType = EffectType.SEARCH_MATCH
+            effectColor = Color.darkGray
+        }
+
+        dataFlowHighlight = editor.markupModel.addRangeHighlighter(
+            currentElement.startOffset,
+            currentElement.endOffset,
+            HighlighterLayer.SELECTION - 1,  // layer priority
+            attributes,
+            HighlighterTargetArea.EXACT_RANGE
+        )
+    }
+
+    /***
+     * Returns the highlight color for each DataFlowCategory.
+     */
+    private fun getDataFlowHighlightColor(type: DataFlowCategory): Color {
+        return when (type) {
+            DataFlowCategory.SOURCE -> Color(118, 10, 174)
+            DataFlowCategory.SINK -> Color(237, 64, 64)
+            DataFlowCategory.PROPAGATOR -> Color(102, 145, 16)
+        }
+    }
+
+    /***
+     * Annotates known SRMs in the mini-editor.
+     ***/
+    private fun annotateSRM(fileContent: String) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val psiFile = ReadAction.compute<PsiFile, Throwable> {
+                val psiFileFactory = PsiFileFactory.getInstance(project)
+                val fileType = FileTypeManager.getInstance().getFileTypeByFileName("dummy.java")
+                psiFileFactory.createFileFromText("dummy.java", fileType, fileContent)
+            }
+
+            val expressions = ReadAction.compute<Collection<com.intellij.psi.PsiMethodCallExpression>, Throwable> {
+                PsiTreeUtil.findChildrenOfType(psiFile, com.intellij.psi.PsiMethodCallExpression::class.java)
+            }
+
+            val highlightTasks = mutableListOf<() -> Unit>()
+
+            for (expr in expressions) {
+                val (method, signature) = ReadAction.compute<Pair<PsiMethod?, String>?, Throwable> {
+                    val m = expr.resolveMethod() ?: return@compute null
+                    m to MethodUtil.getMethodSignature(m)
+                } ?: continue
+
+                if (SrmFinder.isSRM(signature)) {
+                    val tooltip = PluginBundle.lazy("fixmysast.tooltip.SRM_TOOLTIP_TEMPLATE").get()
+                        .format(signature, SrmFinder.getSrmAndCweCategory(signature).joinToString(","))
+
+                    val range = expr.textRange
+                    val start = range.startOffset
+                    val end = range.endOffset
+
+                    highlightTasks.add {
+                        editor?.markupModel?.addRangeHighlighter(
+                            start, end,
+                            HighlighterLayer.ERROR,
+                            TextAttributes(null, Color(60, 47, 47),
+                                Color.darkGray, EffectType.SEARCH_MATCH, Font.PLAIN),
+                            HighlighterTargetArea.EXACT_RANGE
+                        )?.apply {
+                            errorStripeTooltip = tooltip
+                            gutterIconRenderer = object : GutterIconRenderer() {
+                                override fun getIcon() = IconUtils.getSRMGutterIcon(signature)
+                                override fun getTooltipText() = SrmFinder.getSrmAndCweCategory(signature).joinToString(",")
+                                override fun equals(other: Any?) = false
+                                override fun hashCode() = icon.hashCode()
+                            }
+                        }
+                    }
+                }
+            }
+
+            ApplicationManager.getApplication().invokeLater {
+                highlightTasks.forEach { it() }
+            }
+        }
     }
 }
