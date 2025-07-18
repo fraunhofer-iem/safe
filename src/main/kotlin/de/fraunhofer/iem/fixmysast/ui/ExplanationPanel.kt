@@ -46,7 +46,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         add(browser.component, BorderLayout.CENTER)
 
-        val jsQuery = JBCefJSQuery.create(browser)
+        val jsQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
         Disposer.register(browser, jsQuery)
 
         // Handle thumbs up/down feedback
