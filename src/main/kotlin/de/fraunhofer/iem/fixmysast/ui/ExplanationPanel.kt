@@ -451,7 +451,6 @@ ${CweMitigationSummary.getMitigationSummaryFor(getCweIdDigitOnly())}
 
 <script>
 window.feedbackBridge = function (feedback) {
-alert("Calling Kotlin with feedback: " + feedback);
 ${jsQuery.inject("feedback")}
 }
 </script>
