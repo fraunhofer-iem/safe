@@ -93,7 +93,9 @@ object SarifParser {
                                 location.region?.startLine!!,
                                 location.region?.endLine!!
                             ),
-                            confidence, severity, cwe
+                            null,
+                            confidence, severity, cwe, null, null,
+                            false, null
                         )
                     )
                 }
