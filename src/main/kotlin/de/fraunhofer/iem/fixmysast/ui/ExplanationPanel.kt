@@ -3,12 +3,14 @@ package de.fraunhofer.iem.fixmysast.ui
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
@@ -16,6 +18,7 @@ import com.intellij.util.ui.JBUI
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
+import de.fraunhofer.iem.fixmysast.sast.CweMitigationSummary
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
@@ -45,7 +48,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         add(browser.component, BorderLayout.CENTER)
 
-        val jsQuery = JBCefJSQuery.create(browser)
+        val jsQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
         Disposer.register(browser, jsQuery)
 
         // Handle thumbs up/down feedback
@@ -56,40 +59,46 @@ class ExplanationPanel(project: Project) : JPanel() {
                 println("Issue is null :)")
             }
             if (feedback == "bad" && issue != null) {
-                println("User rated response negatively")
-                //TODO: call LLM again
-                browser.loadHTML("<p><i>Re-requesting a better explanation...</i></p>")
 
-                println(issue.explanation)
-
-                //Re-query LLM with improved prompt
-                val oldResp = issue.explanation
-                val newResp = LlmClient.updateExplanation(issue, project)
-
-                try {
-                    getSectionsFromYaml(newResp)
-                    issue.explanation = newResp
+                ApplicationManager.getApplication().executeOnPooledThread {
                     Notifications.Bus.notify(
                         Notification(
-                            "Nofication",
-                            "FixMySAST Update",
-                            "Successfully re-generated new response!",
+                            "Notification",
+                            "Messages.Title.Suggest.NewTrainingFile",
+                            "Re-requesting a better explanation. Please wait.",
                             NotificationType.INFORMATION
                         )
                     )
-                } catch (e: Exception) {
-                    issue.explanation = oldResp
-                    Notifications.Bus.notify(
-                        Notification(
-                            "Nofication",
-                            "FixMySAST Update",
-                            "Failed to re-generated new response. Please try after sometime",
-                            NotificationType.WARNING
-                        )
-                    )
-                }
 
-                showHtml(issue, jsQuery)
+                    val oldResp = issue.explanation
+                    val newResp = LlmClient.updateExplanation(issue, project)
+
+                    ApplicationManager.getApplication().invokeLater {
+                        try {
+                            getSectionsFromYaml(newResp) // To verify the response is in correct format
+                            issue.explanation = newResp
+                            Notifications.Bus.notify(
+                                Notification(
+                                    "Notification",
+                                    "FixMySAST Update",
+                                    "Successfully re-generated new response!",
+                                    NotificationType.INFORMATION
+                                )
+                            )
+                        } catch (e: Exception) {
+                            issue.explanation = oldResp
+                            Notifications.Bus.notify(
+                                Notification(
+                                    "Notification",
+                                    "FixMySAST Update",
+                                    "Failed to re-generate new response. Please try after sometime",
+                                    NotificationType.WARNING
+                                )
+                            )
+                        }
+                        showHtml(issue, jsQuery)
+                    }
+                }
             }
             null
         }
@@ -115,18 +124,16 @@ class ExplanationPanel(project: Project) : JPanel() {
     private fun getSectionsFromYaml(response: String?): Explanation {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
+        val overviewSection = data["Overview"] as? String ?: error("Explanation missing or not a string")
         val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
         val exampleSection = data["ExampleCode"] as? String ?: " "
         val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
-        val codeSection = data["CodeFixSuggestion"] as? String ?: error("Code missing or not a string")
-        val codeSectionExplanation =
-            data["CodeFixSuggestionExplanation"] as? String ?: error("Code missing or not a string")
+
         return Explanation(
+            overviewSection,
             explanationSection,
             exampleSection.trimStart(),
-            exampleCodeExplanation,
-            codeSection.trimStart(),
-            codeSectionExplanation
+            exampleCodeExplanation
         )
     }
 
@@ -136,22 +143,20 @@ class ExplanationPanel(project: Project) : JPanel() {
         println(issue.explanation)
 
         ReadAction.nonBlocking<String> {
-            val (explanation,
+            val (overview,
+                explanation,
                 exampleCode,
-                exampleCodeExplanation,
-                fixSuggestion,
-                fixSuggestionExplanation) = getSectionsFromYaml(
+                exampleCodeExplanation) = getSectionsFromYaml(
                 issue.explanation
             )
 
             //val rawHtml = markdownToHtml(markdown)
             val headerTags = issue.tags.firstOrNull() ?: "N/A"
             val temp = wrapHtmlWithStyle(
+                overview,
                 explanation,
                 exampleCode,
                 exampleCodeExplanation,
-                fixSuggestion,
-                fixSuggestionExplanation,
                 headerTags,
                 issue.type,
                 issue.message,
@@ -160,6 +165,7 @@ class ExplanationPanel(project: Project) : JPanel() {
                 issue.cwe,
                 issue.owasp,
                 issue.impact,
+                issue.location.codeSnippet,
                 jsQuery
             )
             temp
@@ -247,11 +253,10 @@ class ExplanationPanel(project: Project) : JPanel() {
     //CommonMarkFlavourDescriptor flavourDescriptor = new CommonMarkFlavourDescriptor();
 //String html = new MarkdownToHtmlConverter(flavourDescriptor).convertMarkdownToHtml(markdownString, null);
     private fun wrapHtmlWithStyle(
+        overview: String,
         explanation: String,
         exampleCodeRaw: String,
         exampleCodeExplanation: String,
-        fixSuggestion: String,
-        fixSuggestionExplanation: String,
         headerTags: String,
         type: String,
         message: String,
@@ -260,6 +265,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         cwe: List<String>?,
         owasp: List<String>?,
         impact: String?,
+        codeSnippet: String?,
         jsQuery: JBCefJSQuery
     ): String {
 
@@ -293,7 +299,7 @@ class ExplanationPanel(project: Project) : JPanel() {
         }
 
         val exampleHtml = sendStringtoHtmlFormat(exampleCodeRaw).trimStart()
-        val fixSuggestion = sendStringtoHtmlFormat(fixSuggestion).trimStart()
+        val originalCodeSnippet = codeSnippet?.let { sendStringtoHtmlFormat(it).trimStart() }
 
         //Formatting for multiple OWASP tags
         val owaspButtonHtml = owasp?.joinToString(separator = "\n") { tag ->
@@ -335,6 +341,16 @@ class ExplanationPanel(project: Project) : JPanel() {
                 // fallback: return trimmed original string
                 trimmed
             }
+        }
+
+        fun getCweIdDigitOnly(): String {
+            return cwe?.takeIf { it.isNotEmpty() }
+                ?.firstOrNull()
+                ?.split(":")
+                ?.firstOrNull()
+                ?.split("-")
+                ?.takeIf { it.size == 2 }
+                ?.getOrNull(1) ?: ""
         }
 
         val title = simplifyCWE(cwe.orEmpty())
@@ -411,23 +427,29 @@ $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
  
           <section>
+<h2>Overview</h2>
+            $overview
+</section>
+
+<section>
 <h2>Explanation</h2>
             $explanation
+            $originalCodeSnippet
 </section>
  
           ${if (exampleHtml.isNotBlank()) """
 <section>
-<h2>Example&nbsp;Code</h2>
+<details>
+<summary><h2 style="display: inline;">Example&nbsp;Code</h2></summary>
               $exampleCodeExplanation
               $exampleHtml
+</details>
 </section>""" else ""}
  
-          ${if (fixSuggestion.isNotBlank()) """
 <section>
 <h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
-$fixSuggestionExplanation
-$fixSuggestion
-</section>""" else ""}
+${CweMitigationSummary.getMitigationSummaryFor(getCweIdDigitOnly())}
+</section>
 
 <section id = feedback-section" style="margin-top: 24px;">
 <h2> Was this explanation helpful?</h2>
@@ -437,7 +459,6 @@ $fixSuggestion
 
 <script>
 window.feedbackBridge = function (feedback) {
-alert("Calling Kotlin with feedback: " + feedback);
 ${jsQuery.inject("feedback")}
 }
 </script>

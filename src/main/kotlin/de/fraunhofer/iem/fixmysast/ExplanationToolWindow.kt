@@ -24,6 +24,10 @@ import javax.swing.SwingConstants
  */
 class ExplanationToolWindow : ToolWindowFactory {
 
+    companion object {
+        var resultsTree: ResultsTree? = null
+    }
+
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
 
         //Toolbar action panel
@@ -42,8 +46,12 @@ class ExplanationToolWindow : ToolWindowFactory {
             toolPanel.add(actionToolbar.component, BorderLayout.PAGE_START)
         }
 
+        if (resultsTree == null) {
+            resultsTree = ResultsTree(project)
+        }
+
         val splitPane = JBSplitter(false, 0.4f).apply {
-            firstComponent = JBScrollPane(ResultsTree(project))
+            firstComponent = JBScrollPane(resultsTree)
             secondComponent = ExplanationPanel(project)
         }
 
