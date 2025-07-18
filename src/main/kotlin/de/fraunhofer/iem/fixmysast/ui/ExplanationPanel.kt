@@ -9,28 +9,45 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.editor.markup.EffectType
+import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiMethod
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
 import com.intellij.util.ui.JBUI
+import de.fraunhofer.iem.fixmysast.PluginBundle
+import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
 import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
+import de.fraunhofer.iem.fixmysast.icons.IconUtils
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.CweMitigationSummary
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import de.fraunhofer.iem.fixmysast.util.MethodUtil
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Font
 import javax.swing.JPanel
+import kotlin.text.format
 
 
 //Helper function for aesthetics
@@ -501,6 +518,8 @@ ${jsQuery.inject("feedback")}
 
         add(editor!!.component, BorderLayout.CENTER)
 
+        annotateSRM(fileContent)
+
         revalidate()
         repaint()
     }
@@ -515,5 +534,62 @@ ${jsQuery.inject("feedback")}
     override fun removeNotify() {
         super.removeNotify()
         removeEditorIfPresent()
+    }
+
+    /***
+     * Annotates known SRMs in the mini-editor.
+     ***/
+    private fun annotateSRM(fileContent: String) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val psiFile = ReadAction.compute<PsiFile, Throwable> {
+                val psiFileFactory = PsiFileFactory.getInstance(project)
+                val fileType = FileTypeManager.getInstance().getFileTypeByFileName("dummy.java")
+                psiFileFactory.createFileFromText("dummy.java", fileType, fileContent)
+            }
+
+            val expressions = ReadAction.compute<Collection<com.intellij.psi.PsiMethodCallExpression>, Throwable> {
+                PsiTreeUtil.findChildrenOfType(psiFile, com.intellij.psi.PsiMethodCallExpression::class.java)
+            }
+
+            val highlightTasks = mutableListOf<() -> Unit>()
+
+            for (expr in expressions) {
+                val (method, signature) = ReadAction.compute<Pair<PsiMethod?, String>?, Throwable> {
+                    val m = expr.resolveMethod() ?: return@compute null
+                    m to MethodUtil.getMethodSignature(m)
+                } ?: continue
+
+                if (SrmFinder.isSRM(signature)) {
+                    val tooltip = PluginBundle.lazy("fixmysast.tooltip.SRM_TOOLTIP_TEMPLATE").get()
+                        .format(signature, SrmFinder.getSrmAndCweCategory(signature).joinToString(","))
+
+                    val range = expr.textRange
+                    val start = range.startOffset
+                    val end = range.endOffset
+
+                    highlightTasks.add {
+                        editor?.markupModel?.addRangeHighlighter(
+                            start, end,
+                            HighlighterLayer.ERROR,
+                            TextAttributes(null, Color(60, 47, 47),
+                                Color.darkGray, EffectType.SEARCH_MATCH, Font.PLAIN),
+                            HighlighterTargetArea.EXACT_RANGE
+                        )?.apply {
+                            errorStripeTooltip = tooltip
+                            gutterIconRenderer = object : GutterIconRenderer() {
+                                override fun getIcon() = IconUtils.getSRMGutterIcon(signature)
+                                override fun getTooltipText() = SrmFinder.getSrmAndCweCategory(signature).joinToString(",")
+                                override fun equals(other: Any?) = false
+                                override fun hashCode() = icon.hashCode()
+                            }
+                        }
+                    }
+                }
+            }
+
+            ApplicationManager.getApplication().invokeLater {
+                highlightTasks.forEach { it() }
+            }
+        }
     }
 }
