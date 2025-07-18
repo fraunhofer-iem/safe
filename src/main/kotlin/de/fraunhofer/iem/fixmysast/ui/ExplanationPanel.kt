@@ -3,12 +3,14 @@ package de.fraunhofer.iem.fixmysast.ui
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
@@ -57,40 +59,46 @@ class ExplanationPanel(project: Project) : JPanel() {
                 println("Issue is null :)")
             }
             if (feedback == "bad" && issue != null) {
-                println("User rated response negatively")
-                //TODO: call LLM again
-                browser.loadHTML("<p><i>Re-requesting a better explanation...</i></p>")
 
-                println(issue.explanation)
-
-                //Re-query LLM with improved prompt
-                val oldResp = issue.explanation
-                val newResp = LlmClient.updateExplanation(issue)
-
-                try {
-                    getSectionsFromYaml(newResp)
-                    issue.explanation = newResp
+                ApplicationManager.getApplication().executeOnPooledThread {
                     Notifications.Bus.notify(
                         Notification(
-                            "Nofication",
+                            "Notification",
                             "Messages.Title.Suggest.NewTrainingFile",
-                            "Successfully re-generated new response!",
+                            "Re-requesting a better explanation. Please wait.",
                             NotificationType.INFORMATION
                         )
                     )
-                } catch (e: Exception) {
-                    issue.explanation = oldResp
-                    Notifications.Bus.notify(
-                        Notification(
-                            "Nofication",
-                            "Messages.Title.Suggest.NewTrainingFile",
-                            "Failed to re-generated new response. Please try after sometime",
-                            NotificationType.WARNING
-                        )
-                    )
-                }
 
-                showHtml(issue, jsQuery)
+                    val oldResp = issue.explanation
+                    val newResp = LlmClient.updateExplanation(issue)
+
+                    ApplicationManager.getApplication().invokeLater {
+                        try {
+                            getSectionsFromYaml(newResp)
+                            issue.explanation = newResp
+                            Notifications.Bus.notify(
+                                Notification(
+                                    "Notification",
+                                    "Messages.Title.Suggest.NewTrainingFile",
+                                    "Successfully re-generated new response!",
+                                    NotificationType.INFORMATION
+                                )
+                            )
+                        } catch (e: Exception) {
+                            issue.explanation = oldResp
+                            Notifications.Bus.notify(
+                                Notification(
+                                    "Notification",
+                                    "Messages.Title.Suggest.NewTrainingFile",
+                                    "Failed to re-generate new response. Please try after sometime",
+                                    NotificationType.WARNING
+                                )
+                            )
+                        }
+                        showHtml(issue, jsQuery)
+                    }
+                }
             }
             null
         }
