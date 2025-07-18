@@ -75,7 +75,7 @@ class ExplanationPanel(project: Project) : JPanel() {
 
                     ApplicationManager.getApplication().invokeLater {
                         try {
-                            getSectionsFromYaml(newResp)
+                            getSectionsFromYaml(newResp) // To verify the response is in correct format
                             issue.explanation = newResp
                             Notifications.Bus.notify(
                                 Notification(
