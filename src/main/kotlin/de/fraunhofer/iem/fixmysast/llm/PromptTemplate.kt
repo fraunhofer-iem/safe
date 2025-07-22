@@ -11,15 +11,72 @@ import de.fraunhofer.iem.fixmysast.sast.Issue
  */
 object PromptTemplate {
     fun build(issue: Issue, level: Int): String {
-        return when (level) {
-            in 0..3 -> buildBeginnerPrompt(issue)
-            in 4..7 -> buildIntermediatePrompt(issue)
-            else -> buildAdvancedPrompt(issue)
+        return """
+            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for a developer who marked their skills a $level out of 10. 
+            Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
+ 
+            ---
+            You must follow the below guidelines:
+            - The explanation must not exceed 750 words.
+            - Provide the explanation as a basic string value.
+            - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
+            
+            Your response must be a YAML formatted document with these top-level keys:
+             
+            Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
+            Explanation: concise technical explanation of the error found in the original code
+            ExampleCode: representative new code snippet illustrating the issue
+            ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
+            
+            ---
+                
+            Here is an example of the correct output:
+                
+            Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
+            Explanation: "concise technical explanation of the error found in the original code."
+            ExampleCode: |
+              public void exampleMethod() {
+                System.out.println("Hello, world!");
+              }
+            ExampleCodeExplanation: "explanation of the example in the field ExampleCode"
+             
+            ---
+            
+            
+            Below is the information provided by the static analysis tool:
+             
+            Error Type:
+            ```
+            ${issue.type}
+            ```
+             
+            Error Description:
+            ```
+            ${issue.message}
+            ```
+             
+            ${
+            if (issue.tags.isNotEmpty()) """
+                    |Error Tag:
+                    |```
+                    |${issue.tags[0]}
+                    |```
+                """.trimMargin() else ""
         }
+             
+            Original code where the issue was found by the static analysis tool:
+            ```
+            ${issue.location.codeSnippet}
+            ```
+        """.trimIndent()
+//        return when (level) {
+//            in 0..3 -> buildBeginnerPrompt(issue)
+//            in 4..7 -> buildIntermediatePrompt(issue)
+//            else -> buildAdvancedPrompt(issue)
+//        }
     }
 
     fun update(issue: Issue, level: Int): String{
-        println("Inside the update Prompt Function!")
         var update = """
         Previously, you have provided the below explanation for upper issue. 
         The user has rated this as a poor explanation.
@@ -28,32 +85,8 @@ object PromptTemplate {
         ${issue.explanation}
         ---
         Please improve it for clarity and usefulness."""
-
-        var finalPrompt = ""
-
-        if (level > 7)
-        {
-            finalPrompt = buildAdvancedPrompt(issue) + update
-        }
-        else if (level <= 7 && level > 4){
-            finalPrompt = buildIntermediatePrompt(issue) + update
-        }
-        else{
-            finalPrompt = buildBeginnerPrompt(issue) + update
-        }
-        return finalPrompt
-
-//        if(level == ExpertiseLevel.BEGINNER)
-//        {
-//            finalPrompt = buildBeginnerPrompt(issue) + update
-//        }
-//        else if(level == ExpertiseLevel.INTERMEDIATE){
-//            finalPrompt = buildIntermediatePrompt(issue) + update
-//        }
-//        else{
-//            finalPrompt = buildAdvancedPrompt(issue) + update
-//        }
-//        return finalPrompt
+        println("Current level is $level")
+        return build(issue, level) + update
     }
 
     private fun buildBeginnerPrompt(issue: Issue): String {
@@ -227,4 +260,6 @@ object PromptTemplate {
                 ```
         """.trimIndent()
     }
+
+
 }

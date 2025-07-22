@@ -20,7 +20,12 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
 
         val previousLevel = props.getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull()
 
-        val slider = JSlider(0, 10, LevelStateService.get().current)
+        println("Previous Level: $previousLevel")
+
+        val slider = JSlider(0, 10, previousLevel ?: 5)
+
+        println("Current slider: $slider")
+
         slider.majorTickSpacing = 1
         slider.paintTicks = true
         slider.paintLabels = true
@@ -35,8 +40,10 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
 
         if (result == JOptionPane.OK_OPTION) {
             val newLevel = slider.value
+            println("New slider level is $newLevel")
             props.setValue("de.fraunhofer.iem.fixmysast.expertiseValue", newLevel.toString())
-
+            val curr = props.getValue("de.fraunhofer.iem.fixmysast.expertiseValue")
+            println("Current slider value inside properties is $curr")
             if (newLevel != previousLevel) {
                 Notifications.Bus.notify(
                     Notification(
