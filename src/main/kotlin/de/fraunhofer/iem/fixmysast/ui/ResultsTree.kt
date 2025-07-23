@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.io.File
 import java.util.concurrent.Executors
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
@@ -38,27 +39,42 @@ class ResultsTree(private val project: Project) : Tree() {
 
         cellRenderer = ResultsTreeRenderer()
 
-        //Load last file
-        if (PropertiesComponent.getInstance(project)
-                .isValueSet("de.fraunhofer.iem.fixmysast.file")
-        ) {
 
-            // Load SAST results from given path
-            addTreeNodes(
-                parseFile(
-                    PropertiesComponent.getInstance(project)
-                        .getValue("de.fraunhofer.iem.fixmysast.file")!!,
-                    project
-                )
-            )
-            explainResults(project)
-        } else {
-            model = null
-            this.emptyText.setText(
-                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
-                SimpleTextAttributes.REGULAR_ATTRIBUTES
-            )
+//        //Load last file
+//        if (PropertiesComponent.getInstance(project)
+//                .isValueSet("de.fraunhofer.iem.fixmysast.file")
+//        ) {
+//            // Load SAST results from given path
+//            addTreeNodes(
+//                //Define results as a list of parsed SARIF/JSON files?
+//                parseFile(
+//                    PropertiesComponent.getInstance(project)
+//                        .getValue("de.fraunhofer.iem.fixmysast.file")!!,
+//                    project
+//                )
+//            )
+//            explainResults(project)
+//        } else {
+//            model = null
+//            this.emptyText.setText(
+//                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
+//                SimpleTextAttributes.REGULAR_ATTRIBUTES
+//            )
+//        }
+
+
+        val resultsDir = File("${project.basePath}/results")
+        val resultsFiles = resultsDir.listFiles { file: File -> file.extension.lowercase() == "json" } ?: emptyArray()
+
+        val rootNode = DefaultMutableTreeNode("Results")
+        model = DefaultTreeModel(rootNode)
+        this.model = model
+
+        for (file in resultsFiles) {
+            val results = parseFile(file.absolutePath, project)
+            addTreeNodes(results, rootNode)
         }
+        explainResults(project)
 
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
@@ -93,7 +109,7 @@ class ResultsTree(private val project: Project) : Tree() {
             object : ParseFileNotifier {
 
                 override fun parse(sastFile: String) {
-                    addTreeNodes(parseFile(sastFile, project))
+                    addTreeNodes(parseFile(sastFile, project), rootNode)
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
 
@@ -120,13 +136,15 @@ class ResultsTree(private val project: Project) : Tree() {
         }
     }
 
-    fun addTreeNodes(results: Results) {
+    fun addTreeNodes(results: Results, rootNode: DefaultMutableTreeNode) {
 
         this.results = results
 
-        val rootNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + " Problems")
-        model = DefaultTreeModel(rootNode)
+        //val rootNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + " Problems")
+//        val rootNode = DefaultMutableTreeNode("Results")
+//        model = DefaultTreeModel(rootNode)
 
+        val fileNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + "Problems")
         val resultsTreeNode =
             DefaultMutableTreeNode(results.tool + ": " + results.issues.count().toString() + " Problems")
 
@@ -135,7 +153,9 @@ class ResultsTree(private val project: Project) : Tree() {
             issueNode.add(DefaultMutableTreeNode(issue.location))
             resultsTreeNode.add(issueNode)
         }
-        rootNode.add(resultsTreeNode)
+        fileNode.add(resultsTreeNode)
+        //rootNode.add(resultsTreeNode)
+        rootNode.add(fileNode)
     }
 
 
