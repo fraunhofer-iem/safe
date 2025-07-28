@@ -22,7 +22,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.io.File
 import java.util.concurrent.Executors
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
@@ -39,56 +38,44 @@ class ResultsTree(private val project: Project) : Tree() {
 
         cellRenderer = ResultsTreeRenderer()
 
+        //Load last file
+        if (PropertiesComponent.getInstance(project)
+                .isValueSet("de.fraunhofer.iem.fixmysast.file")
+        ) {
 
-//        //Load last file
-//        if (PropertiesComponent.getInstance(project)
-//                .isValueSet("de.fraunhofer.iem.fixmysast.file")
-//        ) {
-//            // Load SAST results from given path
-//            addTreeNodes(
-//                //Define results as a list of parsed SARIF/JSON files?
-//                parseFile(
-//                    PropertiesComponent.getInstance(project)
-//                        .getValue("de.fraunhofer.iem.fixmysast.file")!!,
-//                    project
-//                )
-//            )
-//            explainResults(project)
-//        } else {
-//            model = null
-//            this.emptyText.setText(
-//                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
-//                SimpleTextAttributes.REGULAR_ATTRIBUTES
-//            )
-//        }
-
-
-        val resultsDir = File("${project.basePath}/results")
-        val resultsFiles = resultsDir.listFiles { file: File -> file.extension.lowercase() == "json" } ?: emptyArray()
-
-        val rootNode = DefaultMutableTreeNode("Results")
-        model = DefaultTreeModel(rootNode)
-        this.model = model
-
-        for (file in resultsFiles) {
-            val results = parseFile(file.absolutePath, project)
-            addTreeNodes(results, rootNode)
+            // Load SAST results from given path
+            addTreeNodes(
+                parseFile(
+                    PropertiesComponent.getInstance(project)
+                        .getValue("de.fraunhofer.iem.fixmysast.file")!!,
+                    project
+                )
+            )
+            explainResults(project)
+        } else {
+            model = null
+            this.emptyText.setText(
+                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
+                SimpleTextAttributes.REGULAR_ATTRIBUTES
+            )
         }
-        explainResults(project)
 
         addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
 
-//                val node = lastSelectedPathComponent as DefaultMutableTreeNode?
-//
-//                if (node != null && node.userObject is Issue) {
-//                    val issue = node.userObject as Issue
-//
-//                    val messageBus = project.getMessageBus()
-//                    val publisher: ExplanationNotifier =
-//                        messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
-//                    publisher.showExplanation(issue)
-//                }
+                val node = lastSelectedPathComponent as DefaultMutableTreeNode?
+
+              if (node != null && node.userObject is Issue) {
+                  val issue = node.userObject as Issue
+
+                    val messageBus = project.getMessageBus()
+                    val publisher: ExplanationNotifier =
+                        messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
+                   publisher.showExplanation(issue)
+
+                  val showDataFlow = messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
+                  showDataFlow.showEditor(issue)
+               }
                 if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3) {
                     showContextMenu(e)
                 }
@@ -109,7 +96,7 @@ class ResultsTree(private val project: Project) : Tree() {
             object : ParseFileNotifier {
 
                 override fun parse(sastFile: String) {
-                    addTreeNodes(parseFile(sastFile, project), rootNode)
+                    addTreeNodes(parseFile(sastFile, project))
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
 
@@ -136,26 +123,27 @@ class ResultsTree(private val project: Project) : Tree() {
         }
     }
 
-    fun addTreeNodes(results: Results, rootNode: DefaultMutableTreeNode) {
+    fun addTreeNodes(results: Results) {
 
         this.results = results
 
-        //val rootNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + " Problems")
-//        val rootNode = DefaultMutableTreeNode("Results")
-//        model = DefaultTreeModel(rootNode)
+        val rootNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + " Problems")
+        model = DefaultTreeModel(rootNode)
 
-        val fileNode = DefaultMutableTreeNode(results.filePath + " " + results.issues.count() + "Problems")
         val resultsTreeNode =
             DefaultMutableTreeNode(results.tool + ": " + results.issues.count().toString() + " Problems")
 
         for (issue in results.issues) {
             val issueNode = DefaultMutableTreeNode(issue)
-            issueNode.add(DefaultMutableTreeNode(issue.location))
             resultsTreeNode.add(issueNode)
+
+            val locationNode = DefaultMutableTreeNode(issue.location)
+            issueNode.add(locationNode)
+
+            val messageNode = DefaultMutableTreeNode(issue.message)
+            locationNode.add(messageNode)
         }
-        fileNode.add(resultsTreeNode)
-        //rootNode.add(resultsTreeNode)
-        rootNode.add(fileNode)
+        rootNode.add(resultsTreeNode)
     }
 
 
@@ -173,7 +161,7 @@ class ResultsTree(private val project: Project) : Tree() {
             if (isRegenerate) {
                 Notifications.Bus.notify(
                     Notification(
-                        "Nofication",
+                        "Notification",
                         "Re-generating",
                         "Successfully re-generated new responses for all the issues.",
                         NotificationType.INFORMATION
