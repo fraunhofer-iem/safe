@@ -114,15 +114,6 @@ object JsonParser {
                     r.end.line
                 )
 
-//                val type: String,
-//                val message: String,
-//                val tags: List<String>,
-//                //Add line numbers
-//                val codeSnippet: String,
-//                var explanation: String? = "",
-//                val confidence: String,
-//                val severity: String,
-//                val cwe: List<String>
                 issues.add(
                     Issue(
                         type, message, tags,
@@ -147,7 +138,9 @@ object JsonParser {
             println("Error parsing SARIF from project: ${e.message}")
             logger.error(e.message)
         }
-        return TODO("Provide the return value")
+        return Results(   jsonFile.absolutePath,
+            project.basePath!!,
+            "Semgrep", emptyList())
     }
 
     private fun extractCodeSnippet(
