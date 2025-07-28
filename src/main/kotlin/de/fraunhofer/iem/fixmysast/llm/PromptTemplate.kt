@@ -1,6 +1,5 @@
 package de.fraunhofer.iem.fixmysast.llm
 
-import com.thoughtworks.xstream.mapper.Mapper
 import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
@@ -69,14 +68,9 @@ object PromptTemplate {
             ${issue.location.codeSnippet}
             ```
         """.trimIndent()
-//        return when (level) {
-//            in 0..3 -> buildBeginnerPrompt(issue)
-//            in 4..7 -> buildIntermediatePrompt(issue)
-//            else -> buildAdvancedPrompt(issue)
-//        }
     }
 
-    fun update(issue: Issue, level: Int): String{
+    fun update(issue: Issue, level: Int): String {
         var update = """
         Previously, you have provided the below explanation for upper issue. 
         The user has rated this as a poor explanation.
@@ -88,178 +82,4 @@ object PromptTemplate {
         println("Current level is $level")
         return build(issue, level) + update
     }
-
-    private fun buildBeginnerPrompt(issue: Issue): String {
-        //TODO: Once the developers security experience leve is identified we can merge the three prompts into one single prompt
-        return """
-                 You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an NOVICE DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
-                 
-                ---
-                You must follow the below guidelines:
-                - The explanation must not exceed 750 words. 
-                - Provide the explanation as a basic string value. 
-                - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
-                Your response must be a YAML formatted document with these top-level keys:
-                 
-                Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
-                Explanation: explanation of the error found in the original code
-                ExampleCode: simple new code snippet illustrating the issue
-                ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
-                
-                ---
-                
-                Here is an example of the correct output:
-                
-                Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
-                Explanation: "explanation of the error found in the original code."
-                ExampleCode: |
-                  public void exampleMethod() {
-                      System.out.println("This is the example code.");
-                  }
-                ExampleCodeExplanation: "explanation of the example in the field ExampleCode"
-                 
-                ---
-                
-                
-                Below is the information provided by the static analysis tool:
-                                 
-                Error Type:
-                ```
-                ${issue.type}
-                ```
-                
-                Error Description:
-                ```
-                ${issue.message}
-                ```
-                 
-                ${
-                    if (issue.tags.isNotEmpty()) """
-                        |Error Tag:
-                        |```
-                        |${issue.tags[0]}
-                        |```
-                    """.trimMargin() else ""
-                }
-                 
-                Original code where the issue was found by the static analysis tool:
-                ```
-                ${issue.location.codeSnippet}
-                ```
-        """.trimIndent()
-    }
-
-    private fun buildIntermediatePrompt(issue: Issue): String {
-        return """
-            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an INTERMEDIATE-LEVEL DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
- 
-            ---
-            You must follow the below guidelines:
-            - The explanation must not exceed 750 words.
-            - Provide the explanation as a basic string value.
-            - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
-            
-            Your response must be a YAML formatted document with these top-level keys:
-             
-            Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
-            Explanation: concise technical explanation of the error found in the original code
-            ExampleCode: representative new code snippet illustrating the issue
-            ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
-            
-            ---
-                
-            Here is an example of the correct output:
-                
-            Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
-            Explanation: "concise technical explanation of the error found in the original code."
-            ExampleCode: |
-              public void exampleMethod() {
-                System.out.println("Hello, world!");
-              }
-            ExampleCodeExplanation: "explanation of the example in the field ExampleCode"
-             
-            ---
-            
-            
-            Below is the information provided by the static analysis tool:
-             
-            Error Type:
-            ```
-            ${issue.type}
-            ```
-             
-            Error Description:
-            ```
-            ${issue.message}
-            ```
-             
-            ${
-                if (issue.tags.isNotEmpty()) """
-                    |Error Tag:
-                    |```
-                    |${issue.tags[0]}
-                    |```
-                """.trimMargin() else ""
-            }
-             
-            Original code where the issue was found by the static analysis tool:
-            ```
-            ${issue.location.codeSnippet}
-            ```
-        """.trimIndent()
-    }
-
-    private fun buildAdvancedPrompt(issue: Issue): String {
-        return """
-            You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an ADVANCED-LEVEL DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
-            
-                ---
-                You must follow the below guidelines:
-                - The explanation must not exceed 750 words. 
-                - Provide the explanation as a basic string value. 
-                - Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
-                
-                Your response must be a YAML formatted document with these top-level keys:
-                 
-                Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
-                Explanation: explanation of the error found in the original code
-                
-                ---
-                
-                Here is an example of the correct output:
-                
-                Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
-                Explanation: "explanation of the error found in the original code."
-                 
-                ---
-                
-                Below is the information provided by the static analysis tool:
-                 
-                Error Type:
-                ```
-                ${issue.type}
-                ```
-                 
-                Error Description:
-                ```
-                ${issue.message}
-                ```
-                 
-                ${
-                    if (issue.tags.isNotEmpty()) """
-                        |Error Tag:
-                        |```
-                        |${issue.tags[0]}
-                        |```
-                    """.trimMargin() else ""
-                }
-                 
-                Original code where the issue was found by the static analysis tool:
-                ```
-                ${issue.location.codeSnippet}
-                ```
-        """.trimIndent()
-    }
-
-
 }
