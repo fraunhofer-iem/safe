@@ -100,7 +100,7 @@ object JsonParser {
                 val message = r.extra.message
                 val tags = (r.extra.metadata.owasp ?: emptyList()) +
                         (r.extra.metadata.cwe ?: emptyList())
-                val explanation = r.extra.message
+                val explanation = "N/A"
                 val confidence = r.extra.metadata.confidence
                 val cwe = r.extra.metadata.cwe ?: emptyList()
                 val severity = r.extra.severity ?: "Unknown"

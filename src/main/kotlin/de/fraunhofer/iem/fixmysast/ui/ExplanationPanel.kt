@@ -146,7 +146,12 @@ class ExplanationPanel(private val project: Project) : JPanel() {
                                 )
                             )
                         }
-                        showHtml(issue, jsQuery)
+
+                        if (issue.explanation.equals("N/A")) {
+                            browser.loadHTML("<i>LLM is still running please wait.</i>")
+                        } else {
+                            showHtml(issue, jsQuery)
+                        }
                     }
                 }
             }
@@ -161,7 +166,12 @@ class ExplanationPanel(private val project: Project) : JPanel() {
                 override fun showExplanation(issue: Issue) {
                     sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
                     currentIssue = issue
-                    showHtml(issue,jsQuery)
+
+                    if (issue.explanation.equals("N/A")) {
+                        browser.loadHTML("<i>LLM is still running please wait.</i>")
+                    } else {
+                        showHtml(issue, jsQuery)
+                    }
                 }
             })
 
