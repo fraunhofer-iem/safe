@@ -1,6 +1,5 @@
-package de.fraunhofer.iem.fixmysast.ui
+package de.fraunhofer.iem.fixmysast.ui.panel
 
-import com.intellij.icons.AllIcons
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
@@ -8,66 +7,36 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
-import com.intellij.ui.components.JBLabel
 import com.intellij.openapi.util.Disposer
-import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.PsiMethod
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.ui.JBColor
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
-import com.intellij.util.ui.JBUI
-import de.fraunhofer.iem.fixmysast.PluginBundle
-import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
-import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
-import de.fraunhofer.iem.fixmysast.icons.IconUtils
-import de.fraunhofer.iem.fixmysast.icons.PluginIcons
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.CweMitigationSummary
-import de.fraunhofer.iem.fixmysast.sast.DataFlowCategory
-import de.fraunhofer.iem.fixmysast.sast.DataFlowElement
 import de.fraunhofer.iem.fixmysast.sast.Issue
-import de.fraunhofer.iem.fixmysast.util.MethodUtil
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
 import org.intellij.markdown.html.HtmlGenerator
 import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
-import java.awt.Color
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Font
-import javax.swing.BorderFactory
-import javax.swing.Box
-import javax.swing.Icon
-import javax.swing.JButton
-import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JScrollPane
-import kotlin.text.format
 
 
 //Helper function for aesthetics
 class ExplanationPanel(private val project: Project) : JPanel() {
 
-    val sastResult = JBLabel()
+
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
     private var currentIssue: Issue? = null
 
     init {
         layout = BorderLayout()
-
-        sastResult.setBorder(JBUI.Borders.empty(10))
-        sastResult.isAllowAutoWrapping = true
-        add(sastResult, BorderLayout.NORTH)
 
         // Use JCEF browser for rich HTML content
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
@@ -139,7 +108,6 @@ class ExplanationPanel(private val project: Project) : JPanel() {
             object : ExplanationNotifier {
 
                 override fun showExplanation(issue: Issue) {
-                    sastResult.text = "<html><b>" + issue.type + "</b> <br>" + issue.message + "</html>"
                     currentIssue = issue
 
                     if (issue.explanation.equals("N/A")) {

@@ -8,10 +8,13 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
-import de.fraunhofer.iem.fixmysast.ui.ExplanationPanel
+import de.fraunhofer.iem.fixmysast.ui.panel.ExplanationPanel
+import de.fraunhofer.iem.fixmysast.ui.panel.ResultPanel
 import de.fraunhofer.iem.fixmysast.ui.ResultsTree
+import de.fraunhofer.iem.fixmysast.ui.panel.DataFlowPanel
 import java.awt.BorderLayout
 import javax.swing.JPanel
+import javax.swing.JTabbedPane
 import javax.swing.SwingConstants
 
 /**
@@ -52,7 +55,22 @@ class ExplanationToolWindow : ToolWindowFactory {
 
         val splitPane = JBSplitter(false, 0.4f).apply {
             firstComponent = JBScrollPane(resultsTree)
-            secondComponent = ExplanationPanel(project)
+
+            val tabs = JTabbedPane()
+            tabs.add(
+                ResultPanel(project),
+                PluginBundle.lazy("fixmysast.ui.tab.result").get()
+            )
+            tabs.add(
+                ExplanationPanel(project),
+                PluginBundle.lazy("fixmysast.ui.tab.explanation").get()
+            )
+            tabs.add(
+                DataFlowPanel(project),
+                PluginBundle.lazy("fixmysast.ui.tab.dataflow").get()
+            )
+
+            secondComponent = tabs
         }
 
         toolPanel.add(splitPane, BorderLayout.CENTER)
