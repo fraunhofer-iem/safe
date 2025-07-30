@@ -24,6 +24,7 @@ object LlmClient {
         val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull() ?: 5                 // ← persisted default
         val prompt = PromptTemplate.build(issue, level)
         val requestBody = buildRequestBody(prompt)
+            "0.0"
 
         if (explanationCache.containsKey(requestBody)) {
             //println("Found response for: " + issue.type)

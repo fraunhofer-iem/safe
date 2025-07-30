@@ -4,3 +4,4 @@ openai.api.url=https://fhgenie-api-iem-dev-assist.openai.azure.com/openai/deploy
 olama.api.url=<Olama FRAUNHOFER server URL>
 
 llm.model=<openai or olama>
+llm.temperature=0.0

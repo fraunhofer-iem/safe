@@ -11,10 +11,10 @@ import java.net.URL
  * @author Ranjith
  */
 object HttpService {
-    fun postJson(url: String, apiKey: String, jsonBody: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+    fun postJson(config: LLMConfig, jsonBody: String): String {
+        val connection = (URL(config.apiURL).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            setRequestProperty("api-key", apiKey)
+            setRequestProperty("api-key", config.apiKey)
             setRequestProperty("Content-Type", "application/json")
             doOutput = true
         }
