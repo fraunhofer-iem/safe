@@ -127,10 +127,10 @@ class ExplanationPanel(private val project: Project) : JPanel() {
     private fun getSectionsFromYaml(response: String?): Explanation {
         val yaml = Yaml()
         val data = yaml.load<Map<String, Any>>(response)
-        val overviewSection = data["Overview"] as? String ?: error("Explanation missing or not a string")
-        val explanationSection = data["Explanation"] as? String ?: error("Explanation missing or not a string")
-        val exampleSection = data["ExampleCode"] as? String ?: " "
-        val exampleCodeExplanation = data["ExampleCodeExplanation"] as? String ?: " "
+        val overviewSection = data["overview"] as? String ?: error("Explanation missing or not a string")
+        val explanationSection = data["explanation"] as? String ?: error("Explanation missing or not a string")
+        val exampleSection = data["example"] as? String ?: " "
+        val exampleCodeExplanation = data["exampleDescription"] as? String ?: " "
 
         return Explanation(
             overviewSection,
@@ -215,7 +215,7 @@ class ExplanationPanel(private val project: Project) : JPanel() {
             return idx
         }
 
-        val explStart = findContentStart(src, "Explanation").takeIf { it != -1 } ?: 0
+        val explStart = findContentStart(src, "overview").takeIf { it != -1 } ?: 0
         val exampleStart = findContentStart(src, "Example code", explStart)
         //val explCodeStart = findContentStart(src,)
 
@@ -372,9 +372,10 @@ class ExplanationPanel(private val project: Project) : JPanel() {
             body        { background:#fff; color:#1c1c1c;
                           font-family:"Segoe UI",sans-serif;
                           font-size:14px; line-height:1.6; margin:0; padding:16px; }
-            h1,h2       { color:#003366; font-weight:600; margin:1.0em 0 .6em; }
+            h1,h2, h3       { color:#003366; font-weight:600; margin:1.0em 0 .6em; }
             h1          { margin-top:0; font-size:24px; }
             h2          { font-size:18px; }
+            h3          { font-size:16px; }
             pre,code    { display: block; background:#f5f5f5; font-family:"Courier New",monospace;
                           padding:4px 8px; border-radius:6px; }
             pre         { overflow-x:auto; }
@@ -429,33 +430,34 @@ class ExplanationPanel(private val project: Project) : JPanel() {
 $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
  
-          <section>
-<h2>Overview</h2>
-            $overview
+<section>
+
+$overview
+The SAST tool flagged the following line of code as the cause of the vulnerability: $originalCodeSnippet
 </section>
 
 <section>
-<h2>Explanation</h2>
-            $explanation
-            $originalCodeSnippet
+$explanation
 </section>
  
           ${if (exampleHtml.isNotBlank()) """
-<section>
+<section style="margin-top: 20px;">
 <details>
-<summary><h2 style="display: inline;">Example&nbsp;Code</h2></summary>
+<summary><h3 style="display: inline;">Demonstrative&nbsp;Example</h3></summary>
               $exampleCodeExplanation
               $exampleHtml
 </details>
 </section>""" else ""}
  
-<section>
-<h2>Code&nbsp;Fix&nbsp;Suggestion</h2>
+<section style="margin-top: 20px;">
+<details>
+<summary><h3 style="display: inline;">Potential&nbsp;Mitigation&nbsp;Strategies</h3></summary>
 ${CweMitigationSummary.getMitigationSummaryFor(getCweIdDigitOnly())}
+</details>
 </section>
 
-<section id = feedback-section" style="margin-top: 24px;">
-<h2> Was this explanation helpful?</h2>
+<section id = feedback-section" style="margin-top: 20px;">
+<h3>Was this explanation helpful?</h3>
 <button class="feedback-btn" onclick="window.feedbackBridge('good')">👍 Yes</button>
 <button class="feedback-btn" onclick="window.feedbackBridge('bad')">👎 No</button>
 </section>
