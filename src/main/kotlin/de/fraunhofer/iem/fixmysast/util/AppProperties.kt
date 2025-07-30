@@ -1,6 +1,6 @@
-package de.fraunhofer.iem.fixmysast.core
+package de.fraunhofer.iem.fixmysast.util
 
-import java.util.*
+import java.util.Properties
 
 object AppProperties {
     private val APP_PROP_FILE_NAME = "app.properties"
@@ -26,4 +26,6 @@ object AppProperties {
     val olamaApiUrl: String? get() = props.getProperty("olama.api.url")
 
     val llmModel: String get() = props.getProperty("llm.model")
+
+    val llmTemperature: String get() = props.getProperty("llm.temperature")
 }
