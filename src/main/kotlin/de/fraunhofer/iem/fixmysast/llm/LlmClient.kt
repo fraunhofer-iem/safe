@@ -21,10 +21,14 @@ object LlmClient {
      */
     fun getExplanation(issue: Issue, project: Project): String? {
 
-        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull() ?: 5                 // ← persisted default
-        val prompt = PromptTemplate.build(issue, level)
-        val requestBody = buildRequestBody(prompt)
+        val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
+            ?: "intermediate"                 // ← persisted default
+
+        val requestBody = buildRequestBody(
+            PromptTemplate.getSystemPrompt(),
+            PromptTemplate.buildUserPrompt(issue, level, project),
             "0.0"
+        )
 
         if (explanationCache.containsKey(requestBody)) {
             //println("Found response for: " + issue.type)
@@ -37,10 +41,14 @@ object LlmClient {
         }
     }
 
-    fun updateExplanation(issue:Issue, project: Project): String? {
-        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")?.toIntOrNull() ?: 5
-        val prompt = PromptTemplate.update(issue, level)
-        val requestBody = buildRequestBody(prompt)
+    fun updateExplanation(issue: Issue, project: Project): String? {
+        val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
+            ?: "intermediate"
+
+        val requestBody = buildRequestBody(
+            PromptTemplate.getSystemPrompt(),
+            PromptTemplate.buildUserPrompt(issue, level, project), "0.0"
+        )
         explanationCache[requestBody] = sendRequest(requestBody)
 
         return explanationCache[requestBody]!!
@@ -53,8 +61,7 @@ object LlmClient {
 
         try {
             val response = HttpService.postJson(
-                llmConfig.apiURL,
-                llmConfig.apiKey,
+                llmConfig,
                 requestBody
             )
 
@@ -77,12 +84,10 @@ object LlmClient {
         return """
             {
               "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": $promptJson}
-              ]
                 {"role": "system", "content": $sysPromptJson},
                 {"role": "user", "content": $usrPromptJson}
               ],
+              "temperature": $temperature
             }
         """.trimIndent()
     }
