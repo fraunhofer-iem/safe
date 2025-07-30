@@ -5,7 +5,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.project.Project
 import de.fraunhofer.iem.fixmysast.sast.Issue
-import de.fraunhofer.iem.fixmysast.llm.LLMConfig
 
 /**
  * This class provides the functionality of sending LLM request and receiving the explanation for the SAST issue.
@@ -71,14 +70,18 @@ object LlmClient {
     /**
      * Build the complete prompt by combining the system and user prompts
      */
-    private fun buildRequestBody(prompt: String): String {
-        val promptJson = mapper.writeValueAsString(prompt)
+    private fun buildRequestBody(systemPrompt: String, userPrompt: String, temperature: String): String {
+        val usrPromptJson = mapper.writeValueAsString(userPrompt)
+        val sysPromptJson = mapper.writeValueAsString(systemPrompt)
         return """
             {
               "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": $promptJson}
               ]
+                {"role": "system", "content": $sysPromptJson},
+                {"role": "user", "content": $usrPromptJson}
+              ],
             }
         """.trimIndent()
     }
