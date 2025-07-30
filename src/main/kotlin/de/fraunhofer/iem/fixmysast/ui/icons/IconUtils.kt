@@ -1,8 +1,9 @@
-package de.fraunhofer.iem.fixmysast.icons
+package de.fraunhofer.iem.fixmysast.ui.icons
 
 import com.intellij.openapi.util.IconLoader
 import de.fraunhofer.iem.fixmysast.PluginBundle
 import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
+import de.fraunhofer.iem.fixmysast.ui.icons.PluginIcons
 import javax.swing.Icon
 
 /***
