@@ -34,11 +34,11 @@ exampleDescription: "<description of example code snippet>"
 """
     }
 
-    fun buildUserPrompt(issue: Issue, level: String, project: Project): String {
+    fun buildUserPrompt(issue: Issue?, level: String, project: Project): String {
 
         val dataFlows: StringBuilder = StringBuilder()
-        if (issue.hasDataFlowTrace)
-            for (dataflow in issue.dataFlowTrace!!)
+        if (issue?.hasDataFlowTrace == true )
+            for (dataflow in issue?.dataFlowTrace!!)
                 dataFlows.append(dataflow.type.toString() + ": " + dataflow.name + "\n")
 
         val methodBody = getMethodCode(issue, project)
@@ -52,12 +52,12 @@ $methodBody
 
 Vulnerability detected:
 ```
-${issue.type}: ${issue.message}
+${issue?.type}: ${issue?.message}
 ```
 
 Line with vulnerability:
 ```
-${issue.location.codeSnippet}
+${issue?.location?.codeSnippet}
 ```
 
 Data-flow trace:
@@ -68,14 +68,14 @@ $dataFlows
 """
     }
 
-    fun getMethodCode(issue: Issue, project: Project): String {
+    fun getMethodCode(issue: Issue?, project: Project): String {
 
         var methodBody: String = ""
 
         ApplicationManager.getApplication().runReadAction {
             //Get PSI element location
             val files = FilenameIndex.getVirtualFilesByName(
-                issue.location.fileName.substringAfterLast(File.separator),
+                issue?.location?.fileName?.substringAfterLast(File.separator) ?: "",
                 GlobalSearchScope.projectScope(project)
             )
 
@@ -85,7 +85,7 @@ $dataFlows
 
                     for (psiMethod in psiClass.getMethods()) {
 
-                        if (psiMethod.body!!.text.contains(issue.location.codeSnippet.trim()))
+                        if (psiMethod.body!!.text.contains(issue?.location?.codeSnippet?.trim() ?:""))
                             methodBody = psiMethod.text
                     }
                 }

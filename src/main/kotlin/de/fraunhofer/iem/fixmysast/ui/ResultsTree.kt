@@ -4,7 +4,6 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.treeStructure.Tree
@@ -32,6 +31,7 @@ import javax.swing.tree.DefaultTreeModel
 class ResultsTree(private val project: Project) : Tree() {
 
     private lateinit var results: Results
+    private var currentIssue: Issue? = null
     val bus: MessageBus = project.messageBus
 
     init {
@@ -51,7 +51,8 @@ class ResultsTree(private val project: Project) : Tree() {
                     project
                 )
             )
-            explainResults(project)
+            //change to when they click
+            //explainResults(project)
         } else {
             model = null
             this.emptyText.setText(
@@ -68,6 +69,9 @@ class ResultsTree(private val project: Project) : Tree() {
               if (node != null && node.userObject is Issue) {
                   val issue = node.userObject as Issue
 
+
+                    explainResults(project, false, issue)
+                    currentIssue = issue
                     val messageBus = project.getMessageBus()
                     val publisher: ExplanationNotifier =
                         messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
@@ -100,13 +104,13 @@ class ResultsTree(private val project: Project) : Tree() {
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
 
-                    explainResults(project)
+                    //explainResults(project)
                 }
             })
     }
 
     fun refreshTree(project:Project) {
-        explainResults(project,true)
+        explainResults(project,true, currentIssue)
     }
 
     fun parseFile(resultsFile: String, project: Project): Results {
@@ -147,16 +151,19 @@ class ResultsTree(private val project: Project) : Tree() {
     }
 
 
-    private fun explainResults(project: Project, isRegenerate: Boolean = false) {
+    private fun explainResults(project: Project, isRegenerate: Boolean = false, issue: Issue?) {
 
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val scope = CoroutineScope(dispatcher)
 
-        ApplicationManager.getApplication().executeOnPooledThread {
-            results.issues.forEachIndexed { index, issue ->
+        //change to only load file when clicked on
+//        ApplicationManager.getApplication().executeOnPooledThread {
+//            results.issues.forEachIndexed { index, issue ->
+//
+//                issue.explanation = LlmClient.getExplanation(issue, project).toString()
+//            }
+            issue?.explanation = LlmClient.getExplanation(issue, project).toString()
 
-                issue.explanation = LlmClient.getExplanation(issue, project).toString()
-            }
 
             if (isRegenerate) {
                 Notifications.Bus.notify(
@@ -169,7 +176,7 @@ class ResultsTree(private val project: Project) : Tree() {
                 )
             }
         }
-    }
+
     private fun showContextMenu(e: MouseEvent) {
         val node = getSelectedNode() ?: return
         val issue = node.userObject as? Issue ?: return

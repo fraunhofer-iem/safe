@@ -19,7 +19,7 @@ object LlmClient {
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
      */
-    fun getExplanation(issue: Issue, project: Project): String? {
+    fun getExplanation(issue: Issue?, project: Project): String? {
 
         val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
             ?: "intermediate"                 // ← persisted default

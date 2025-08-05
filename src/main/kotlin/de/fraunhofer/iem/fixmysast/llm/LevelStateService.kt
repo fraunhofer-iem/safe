@@ -44,7 +44,7 @@ class LevelStateService {
 
 }
 
-typealias ExpertiseLevel = Int
+typealias ExpertiseLevel = String
 //enum class ExpertiseLevel(val label: String) {
 //    BEGINNER("Beginner"),
 //    INTERMEDIATE("Intermediate"),

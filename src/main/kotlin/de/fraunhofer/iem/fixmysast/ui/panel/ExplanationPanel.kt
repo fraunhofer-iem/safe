@@ -58,7 +58,7 @@ class ExplanationPanel(private val project: Project) : JPanel() {
                     Notifications.Bus.notify(
                         Notification(
                             "Notification",
-                            "Messages.Title.Suggest.NewTrainingFile",
+                            "FixMySAST Update",
                             "Re-requesting a better explanation. Please wait.",
                             NotificationType.INFORMATION
                         )

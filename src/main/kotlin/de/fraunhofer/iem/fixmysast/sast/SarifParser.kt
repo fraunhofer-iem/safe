@@ -135,7 +135,6 @@ object SarifParser {
         return Results(fileName, issues.groupBy { it.type })
     }*/
 
-
     private fun extractCodeSnippet(project: Project, result: Result): String {
 
         val projectPath = project.basePath
