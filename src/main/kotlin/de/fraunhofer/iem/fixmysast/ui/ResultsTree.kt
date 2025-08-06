@@ -58,6 +58,7 @@ class ResultsTree(private val project: Project) : Tree() {
             //explainResults(project)
             if(preloadSetting) {
                 explainAllResults(project)
+                println("explaining all results....")
             }
         } else {
             model = null
@@ -196,11 +197,15 @@ class ResultsTree(private val project: Project) : Tree() {
         }
 
     fun explainAllResults(project: Project) {
-        val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-        val scope = CoroutineScope(dispatcher)
+        val props = PropertiesComponent.getInstance(project)
+
         ApplicationManager.getApplication().executeOnPooledThread {
-            results.issues.forEachIndexed { index, issue ->
-                issue.explanation = LlmClient.getExplanation(issue, project).toString()
+            results.issues.forEach { issue ->
+                listOf("Beginner", "Intermediate", "Advanced").forEach { level ->
+                    props.setValue("de.fraunhofer.iem.fixmysast.expertiseValue", level)
+                    // This populates the cache for each level
+                    LlmClient.getExplanation(issue, project)
+                }
             }
         }
     }

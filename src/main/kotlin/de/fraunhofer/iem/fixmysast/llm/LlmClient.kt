@@ -32,11 +32,11 @@ object LlmClient {
         )
 
         if (explanationCache.containsKey(requestBody)) {
-            //println("Found response for: " + issue?.type)
+            println("Found response for: " + issue?.type)
             //println(requestBody)
             return explanationCache[requestBody]!!
         } else {
-            //println("Send request for: "+ issue?.type)
+            println("Send request for: "+ issue?.type)
             //println(requestBody)
             explanationCache[requestBody] = sendRequest(requestBody)
 
