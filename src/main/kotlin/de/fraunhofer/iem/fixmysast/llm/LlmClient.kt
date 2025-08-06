@@ -21,8 +21,9 @@ object LlmClient {
      */
     fun getExplanation(issue: Issue?, project: Project): String? {
 
-        val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
-            ?: "intermediate"                 // ← persisted default
+        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")         // ← persisted default
+
+        println("Level being used inside getExplanation is... $level")
 
         val requestBody = buildRequestBody(
             PromptTemplate.getSystemPrompt(),
@@ -31,10 +32,12 @@ object LlmClient {
         )
 
         if (explanationCache.containsKey(requestBody)) {
-            //println("Found response for: " + issue.type)
+            //println("Found response for: " + issue?.type)
+            //println(requestBody)
             return explanationCache[requestBody]!!
         } else {
-            //println("Send request for: "+ issue.type)
+            //println("Send request for: "+ issue?.type)
+            //println(requestBody)
             explanationCache[requestBody] = sendRequest(requestBody)
 
             return explanationCache[requestBody]!!
@@ -43,7 +46,6 @@ object LlmClient {
 
     fun updateExplanation(issue: Issue, project: Project): String? {
         val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
-            ?: "intermediate"
 
         val requestBody = buildRequestBody(
             PromptTemplate.getSystemPrompt(),

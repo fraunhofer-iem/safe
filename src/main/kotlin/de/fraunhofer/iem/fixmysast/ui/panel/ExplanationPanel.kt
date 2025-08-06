@@ -1,5 +1,6 @@
 package de.fraunhofer.iem.fixmysast.ui.panel
 
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
@@ -13,6 +14,7 @@ import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
+import de.fraunhofer.iem.fixmysast.comm.EXPERTISE_LEVEL_CHANGE_TOPIC
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
@@ -25,7 +27,7 @@ import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
 import javax.swing.JPanel
-
+import de.fraunhofer.iem.fixmysast.comm.ExpertiseLevelChangeNotifier
 
 //Helper function for aesthetics
 class ExplanationPanel(private val project: Project) : JPanel() {
@@ -33,7 +35,10 @@ class ExplanationPanel(private val project: Project) : JPanel() {
 
     val browser = JBCefBrowser()
     val bus: MessageBus = project.messageBus
-    private var currentIssue: Issue? = null
+    private lateinit var currentIssue: Issue
+    private val jsQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
+
+    val props = PropertiesComponent.getInstance(project)
 
     init {
         layout = BorderLayout()
@@ -42,7 +47,7 @@ class ExplanationPanel(private val project: Project) : JPanel() {
         browser.loadHTML("<i>Click a vulnerability to see explanation</i>")
         add(browser.component, BorderLayout.CENTER)
 
-        val jsQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
+
         Disposer.register(browser, jsQuery)
 
         // Handle thumbs up/down feedback
@@ -117,8 +122,23 @@ class ExplanationPanel(private val project: Project) : JPanel() {
                     }
                 }
             })
-    }
 
+        project.messageBus.connect().subscribe(
+            EXPERTISE_LEVEL_CHANGE_TOPIC,
+            object : ExpertiseLevelChangeNotifier {
+                        override fun onExpertiseLevelChanged(project: Project) {
+                            println("Level change detected - refresshing explanation")
+
+                            currentIssue?.let { issue ->
+
+                                issue.explanation = LlmClient.getExplanation(issue, project)
+                                showHtml(issue, jsQuery)
+
+                            }
+                }
+            }
+        )
+    }
     /*
         Instruct chat respones to produce YAML
         parse YAML for proper vars

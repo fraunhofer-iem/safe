@@ -7,6 +7,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import de.fraunhofer.iem.fixmysast.sast.Issue
+import org.jetbrains.annotations.NonNls
 import java.io.File
 
 /**
@@ -34,7 +35,7 @@ exampleDescription: "<description of example code snippet>"
 """
     }
 
-    fun buildUserPrompt(issue: Issue?, level: String, project: Project): String {
+    fun buildUserPrompt(issue: Issue?, level: @NonNls String?, project: Project): String {
 
         val dataFlows: StringBuilder = StringBuilder()
         if (issue?.hasDataFlowTrace == true )

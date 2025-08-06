@@ -4,6 +4,7 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.treeStructure.Tree
@@ -17,6 +18,7 @@ import de.fraunhofer.iem.fixmysast.sast.Issue
 import de.fraunhofer.iem.fixmysast.sast.JsonParser
 import de.fraunhofer.iem.fixmysast.sast.Results
 import de.fraunhofer.iem.fixmysast.sast.SarifParser
+import de.fraunhofer.iem.fixmysast.ui.panel.ExplanationPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
@@ -33,6 +35,7 @@ class ResultsTree(private val project: Project) : Tree() {
     private lateinit var results: Results
     private var currentIssue: Issue? = null
     val bus: MessageBus = project.messageBus
+    var preloadSetting: Boolean = true
 
     init {
 
@@ -53,6 +56,9 @@ class ResultsTree(private val project: Project) : Tree() {
             )
             //change to when they click
             //explainResults(project)
+            if(preloadSetting) {
+                explainAllResults(project)
+            }
         } else {
             model = null
             this.emptyText.setText(
@@ -67,6 +73,16 @@ class ResultsTree(private val project: Project) : Tree() {
                 val node = lastSelectedPathComponent as DefaultMutableTreeNode?
 
               if (node != null && node.userObject is Issue) {
+
+                  Notifications.Bus.notify(
+                      Notification(
+                          "Notification",
+                          "Generating Response",
+                          "Please wait, response is being generated...",
+                          NotificationType.INFORMATION
+                      )
+                  )
+
                   val issue = node.userObject as Issue
 
 
@@ -151,7 +167,7 @@ class ResultsTree(private val project: Project) : Tree() {
     }
 
 
-    private fun explainResults(project: Project, isRegenerate: Boolean = false, issue: Issue?) {
+    private fun explainResults(project: Project, isRegenerate: Boolean, issue: Issue?) {
 
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val scope = CoroutineScope(dispatcher)
@@ -162,8 +178,9 @@ class ResultsTree(private val project: Project) : Tree() {
 //
 //                issue.explanation = LlmClient.getExplanation(issue, project).toString()
 //            }
-            issue?.explanation = LlmClient.getExplanation(issue, project).toString()
+        issue?.explanation = LlmClient.getExplanation(issue, project).toString()
 
+        println("isRegenrate variable is set to $isRegenerate")
 
             if (isRegenerate) {
                 Notifications.Bus.notify(
@@ -175,7 +192,18 @@ class ResultsTree(private val project: Project) : Tree() {
                     )
                 )
             }
+        println("We've re-explained the results")
         }
+
+    fun explainAllResults(project: Project) {
+        val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+        val scope = CoroutineScope(dispatcher)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            results.issues.forEachIndexed { index, issue ->
+                issue.explanation = LlmClient.getExplanation(issue, project).toString()
+            }
+        }
+    }
 
     private fun showContextMenu(e: MouseEvent) {
         val node = getSelectedNode() ?: return

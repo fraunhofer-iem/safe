@@ -6,7 +6,9 @@ import com.intellij.notification.Notifications
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
 import de.fraunhofer.iem.fixmysast.ExplanationToolWindow
+import de.fraunhofer.iem.fixmysast.comm.EXPERTISE_LEVEL_CHANGE_TOPIC
 import de.fraunhofer.iem.fixmysast.llm.LevelStateService
+import de.fraunhofer.iem.fixmysast.ui.panel.ExplanationPanel
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.JComponent
@@ -23,16 +25,11 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
         val props = PropertiesComponent.getInstance(project)
 
         val previousLevel = props.getValue("de.fraunhofer.iem.fixmysast.expertiseValue")
+        props.setValue("de.fraunhofer.iem.fixmysast.prevExpertiseValue", previousLevel)
 
         val lowButton = JRadioButton("Beginner")
         val medButton = JRadioButton("Intermediate")
         val highButton = JRadioButton("Advanced")
-
-        val group = ButtonGroup().apply {
-            add(lowButton)
-            add(medButton)
-            add(highButton)
-        }
 
         val panel = JPanel().apply{
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -58,7 +55,7 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
             }
 
             val newCategory = selected
-            //println("New slider level is $newLevel")
+            println("New slider level is $newCategory")
             props.setValue("de.fraunhofer.iem.fixmysast.expertiseValue", newCategory)
             val curr = props.getValue("de.fraunhofer.iem.fixmysast.expertiseValue")
             println("Current slider value inside properties is $curr")
@@ -66,12 +63,14 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
                 Notifications.Bus.notify(
                     Notification(
                     "FixMySAST",
-                    "Re-generating",
+                    "FixMySAST Update",
                     "Regenerating the explanation. Please wait.",
                     NotificationType.INFORMATION
                 ),
                     project)
-                ExplanationToolWindow.resultsTree?.refreshTree(project)
+                val bus = project.messageBus
+                val publisher = bus.syncPublisher(EXPERTISE_LEVEL_CHANGE_TOPIC)
+                publisher.onExpertiseLevelChanged(project)
             }
         }
     }
