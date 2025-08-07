@@ -15,6 +15,7 @@ import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.PsiMethodCallExpression
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.PluginBundle
@@ -233,9 +234,9 @@ class DataFlowPanel( val project: Project) : JPanel()  {
      */
     private fun getDataFlowHighlightColor(type: DataFlowCategory): Color {
         return when (type) {
-            DataFlowCategory.SOURCE -> Color(118, 10, 174)
-            DataFlowCategory.SINK -> Color(237, 64, 64)
-            DataFlowCategory.PROPAGATOR -> Color(102, 145, 16)
+            DataFlowCategory.SOURCE -> JBColor(Color(255, 217, 255), Color(255, 217, 255))
+            DataFlowCategory.SINK -> JBColor(Color(255, 210, 192), Color(255, 210, 192))
+            DataFlowCategory.PROPAGATOR -> JBColor(Color(243, 255, 157), Color(243, 255, 157))
         }
     }
 
@@ -274,8 +275,8 @@ class DataFlowPanel( val project: Project) : JPanel()  {
                         editor?.markupModel?.addRangeHighlighter(
                             start, end,
                             HighlighterLayer.ERROR,
-                            TextAttributes(null, Color(60, 47, 47),
-                                Color.darkGray, EffectType.SEARCH_MATCH, Font.PLAIN),
+                            TextAttributes(null, Color.lightGray,
+                                Color.lightGray, EffectType.SEARCH_MATCH, Font.PLAIN),
                             HighlighterTargetArea.EXACT_RANGE
                         )?.apply {
                             errorStripeTooltip = tooltip

@@ -25,6 +25,10 @@ object PluginIcons {
     @JvmField
     val AUTHENTICATION_NOCHANGE: Icon =
         IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("auth_no"), javaClass)
+
+    @JvmField
+    val PROPAGATOR: Icon =
+        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("pro"), javaClass)
     @JvmField
     val CWE: Icon =
         IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("cwe"), javaClass)

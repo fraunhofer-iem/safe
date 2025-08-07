@@ -16,6 +16,7 @@ object IconUtils {
             cat in PluginBundle.getMessage("fixmysast.categories.CWE").split(",") -> PluginIcons.CWE
             cat.equals(PluginBundle.getMessage("fixmysast.categories.SOURCE"), ignoreCase = true) -> PluginIcons.SOURCE
             cat.equals(PluginBundle.getMessage("fixmysast.categories.SINK"), ignoreCase = true) -> PluginIcons.SINK
+            cat.equals(PluginBundle.getMessage("fixmysast.categories.PROPAGATOR"), ignoreCase = true) -> PluginIcons.PROPAGATOR
             cat.equals(PluginBundle.getMessage("fixmysast.categories.SANITIZER"), ignoreCase = true) -> PluginIcons.SANITIZER
             cat.equals(PluginBundle.getMessage("fixmysast.categories.AUTHENTICATION_UNSAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_UNSAFE
             cat.equals(PluginBundle.getMessage("fixmysast.categories.AUTHENTICATION_SAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_SAFE
