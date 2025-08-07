@@ -13,6 +13,7 @@ import de.fraunhofer.iem.fixmysast.PluginBundle
 import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
+import de.fraunhofer.iem.fixmysast.comm.ResultNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
 import de.fraunhofer.iem.fixmysast.sast.Issue
 import de.fraunhofer.iem.fixmysast.sast.JsonParser
@@ -94,9 +95,12 @@ class ResultsTree(private val project: Project) : Tree() {
                         messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
                    publisher.showExplanation(issue)
 
-                  val showDataFlow = messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
-                  showDataFlow.showEditor(issue)
-               }
+                    val showDataFlow = messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
+                    showDataFlow.showEditor(issue)
+
+                    val resultPanel = messageBus.syncPublisher(ResultNotifier.SHOW_RESULT_TOPIC)
+                    resultPanel.showResult(issue)
+                }
                 if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3) {
                     showContextMenu(e)
                 }
