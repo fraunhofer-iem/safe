@@ -1,9 +1,6 @@
 package de.fraunhofer.iem.fixmysast.ui
 
 import com.intellij.ide.util.PropertiesComponent
-import com.intellij.notification.Notification
-import com.intellij.notification.NotificationType
-import com.intellij.notification.Notifications
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.SimpleTextAttributes
@@ -15,15 +12,12 @@ import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.comm.ParseFileNotifier
 import de.fraunhofer.iem.fixmysast.comm.ResultNotifier
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
-import de.fraunhofer.iem.fixmysast.sast.Issue
-import de.fraunhofer.iem.fixmysast.sast.JsonParser
-import de.fraunhofer.iem.fixmysast.sast.Results
-import de.fraunhofer.iem.fixmysast.sast.SarifParser
-import de.fraunhofer.iem.fixmysast.ui.panel.ExplanationPanel
+import de.fraunhofer.iem.fixmysast.sast.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.util.*
 import java.util.concurrent.Executors
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
@@ -55,12 +49,9 @@ class ResultsTree(private val project: Project) : Tree() {
                     project
                 )
             )
-            //change to when they click
-            //explainResults(project)
-            if(preloadSetting) {
-                explainAllResults(project)
-                println("explaining all results....")
-            }
+
+            explainResults(project)
+            expandTree()
         } else {
             model = null
             this.emptyText.setText(
@@ -74,26 +65,34 @@ class ResultsTree(private val project: Project) : Tree() {
 
                 val node = lastSelectedPathComponent as DefaultMutableTreeNode?
 
-              if (node != null && node.userObject is Issue) {
+                val messageBus = project.getMessageBus()
 
-                  Notifications.Bus.notify(
-                      Notification(
-                          "Notification",
-                          "Generating Response",
-                          "Please wait, response is being generated...",
-                          NotificationType.INFORMATION
-                      )
-                  )
+                if (node != null && node.userObject is Issue) {
 
-                  val issue = node.userObject as Issue
+                    val issue = node.userObject as Issue
 
+                    val resultPanel = messageBus.syncPublisher(ResultNotifier.SHOW_RESULT_TOPIC)
+                    resultPanel.showResult(issue)
+                } else if (node != null && node.userObject is IssueLocation) {
 
-                    explainResults(project, false, issue)
+                    val parent = node.parent as DefaultMutableTreeNode?
+                    val issue = parent!!.userObject as Issue
+
+                    /*Notifications.Bus.notify(
+                        Notification(
+                            "Notification",
+                            "Generating Response",
+                            "Please wait, response is being generated...",
+                            NotificationType.INFORMATION
+                        )
+                    )*/
+
+                    explainResult(project, issue)
                     currentIssue = issue
-                    val messageBus = project.getMessageBus()
-                    val publisher: ExplanationNotifier =
+
+                    val explanationPanel =
                         messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
-                   publisher.showExplanation(issue)
+                    explanationPanel.showExplanation(issue)
 
                     val showDataFlow = messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
                     showDataFlow.showEditor(issue)
@@ -125,13 +124,20 @@ class ResultsTree(private val project: Project) : Tree() {
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
 
-                    //explainResults(project)
+                    explainResults(project)
                 }
             })
+        cellRenderer = ResultsTreeRenderer()
     }
 
-    fun refreshTree(project:Project) {
-        explainResults(project,true, currentIssue)
+    fun expandTree() {
+        for (i in 0..<rowCount) {
+            expandRow(i)
+        }
+    }
+
+    fun refreshTree(project: Project) {
+        //explainResult(project,  currentIssue,)
     }
 
     fun parseFile(resultsFile: String, project: Project): Results {
@@ -159,58 +165,82 @@ class ResultsTree(private val project: Project) : Tree() {
             DefaultMutableTreeNode(results.tool + ": " + results.issues.count().toString() + " Problems")
 
         for (issue in results.issues) {
-            val issueNode = DefaultMutableTreeNode(issue)
-            resultsTreeNode.add(issueNode)
+
+            val issueNode = DefaultMutableTreeNode( issue)
+            //group by issue types
+            //val issueNode = searchNode(resultsTreeNode, issue)
 
             val locationNode = DefaultMutableTreeNode(issue.location)
-            issueNode.add(locationNode)
+            issueNode!!.add(locationNode)
 
             val messageNode = DefaultMutableTreeNode(issue.message)
             locationNode.add(messageNode)
+
+            resultsTreeNode.add(issueNode)
         }
         rootNode.add(resultsTreeNode)
     }
 
+    private fun searchNode(root: DefaultMutableTreeNode, query: Issue): DefaultMutableTreeNode? {
+        val e: Enumeration<*> = root.breadthFirstEnumeration()
 
-    private fun explainResults(project: Project, isRegenerate: Boolean, issue: Issue?) {
+        while (e.hasMoreElements()) {
+            val node = e.nextElement() as DefaultMutableTreeNode
+
+            if (node.getUserObject() is Issue) {
+                val issue: Issue = node.getUserObject() as Issue
+                if (query.type.contentEquals(issue.type)) {
+                    return node
+                }
+            }
+        }
+        return DefaultMutableTreeNode(query)
+    }
+
+
+    private fun explainResult(project: Project, issue: Issue) {
 
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val scope = CoroutineScope(dispatcher)
 
+        val level = PropertiesComponent.getInstance(project)
+            .getValue("de.fraunhofer.iem.fixmysast.expertiseValue")         // ← persisted default
+
         //change to only load file when clicked on
-//        ApplicationManager.getApplication().executeOnPooledThread {
-//            results.issues.forEachIndexed { index, issue ->
-//
-//                issue.explanation = LlmClient.getExplanation(issue, project).toString()
-//            }
-        issue?.explanation = LlmClient.getExplanation(issue, project).toString()
+        ApplicationManager.getApplication().executeOnPooledThread {
 
-        println("isRegenrate variable is set to $isRegenerate")
+            issue.explanation = LlmClient.getExplanation(
+                issue, project,
+                level.toString()
+            ).toString()
 
-            if (isRegenerate) {
-                Notifications.Bus.notify(
-                    Notification(
-                        "Notification",
-                        "Re-generating",
-                        "Successfully re-generated new responses for all the issues.",
-                        NotificationType.INFORMATION
-                    )
-                )
-            }
-        println("We've re-explained the results")
+            println(
+                "************************************************\n" +
+                        issue.type + "\n" +
+                        issue.location + "\n" +
+                        level.toString() + "\n" +
+                        "************************************************" +
+                        issue.explanation +"\n" +
+                        "************************************************"
+            )
         }
+        //cellRenderer = ResultsTreeRenderer()
+    }
 
-    fun explainAllResults(project: Project) {
-        val props = PropertiesComponent.getInstance(project)
+    fun explainResults(project: Project) {
 
         ApplicationManager.getApplication().executeOnPooledThread {
+            println("START: "+ Calendar.getInstance().time)
             results.issues.forEach { issue ->
-                listOf("Beginner", "Intermediate", "Advanced").forEach { level ->
-                    props.setValue("de.fraunhofer.iem.fixmysast.expertiseValue", level)
+                listOf("Beginner"
+                    , "Intermediate", "Advanced"
+                ).forEach { level ->
+
                     // This populates the cache for each level
-                    LlmClient.getExplanation(issue, project)
+                    LlmClient.getExplanation(issue, project, level)
                 }
             }
+            println("END: "+ Calendar.getInstance().time)
         }
     }
 

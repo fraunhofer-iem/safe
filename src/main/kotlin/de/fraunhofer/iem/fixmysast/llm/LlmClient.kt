@@ -19,25 +19,17 @@ object LlmClient {
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
      */
-    fun getExplanation(issue: Issue?, project: Project): String? {
-
-        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.fixmysast.expertiseValue")         // ← persisted default
-
-        println("Level being used inside getExplanation is... $level")
+    fun getExplanation(issue: Issue?, project: Project, experienceLevel: String): String? {
 
         val requestBody = buildRequestBody(
             PromptTemplate.getSystemPrompt(),
-            PromptTemplate.buildUserPrompt(issue, level, project),
+            PromptTemplate.buildUserPrompt(issue, experienceLevel, project),
             "0.0"
         )
 
         if (explanationCache.containsKey(requestBody)) {
-            println("Found response for: " + issue?.type)
-            //println(requestBody)
             return explanationCache[requestBody]!!
         } else {
-            println("Send request for: "+ issue?.type)
-            //println(requestBody)
             explanationCache[requestBody] = sendRequest(requestBody)
 
             return explanationCache[requestBody]!!
@@ -55,10 +47,14 @@ object LlmClient {
 
         return explanationCache[requestBody]!!
     }
+
     fun sendRequest(requestBody: String): String {
 
         //val future = CompletableFuture<String>()
-
+        println(
+            ">>>>>>>>>>>>>>>>>>>>>>>>>>>\n" +
+                    requestBody + "\n>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+        )
         val llmConfig = getLLMConfig()
 
         try {
