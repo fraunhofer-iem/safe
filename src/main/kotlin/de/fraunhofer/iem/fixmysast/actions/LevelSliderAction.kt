@@ -8,11 +8,9 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import de.fraunhofer.iem.fixmysast.comm.ExpertiseLevelNotifier
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
-import javax.swing.JComponent
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JRadioButton
-import javax.swing.JSlider
 
 class LevelSliderAction : AnAction("Set Expertise Level") {
     override fun actionPerformed(e: AnActionEvent){
@@ -27,6 +25,18 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
         val lowButton = JRadioButton("Beginner")
         val medButton = JRadioButton("Intermediate")
         val highButton = JRadioButton("Advanced")
+
+        if(previousLevel.contentEquals("Beginner"))
+            lowButton.isSelected = true
+        else if(previousLevel.contentEquals("Intermediate"))
+            medButton.isSelected = true
+        else if(previousLevel.contentEquals("Advanced"))
+            highButton.isSelected = true
+
+        val levelGroup = ButtonGroup()
+        levelGroup.add(lowButton)
+        levelGroup.add(medButton)
+        levelGroup.add(highButton)
 
         val panel = JPanel().apply{
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
