@@ -139,8 +139,8 @@ class ExplanationPanel(private val project: Project) : JPanel() {
                                     issue.location + "\n" +
                                     level + "\n" +
                                     "************************************************" +
-                                    issue.explanation +"\n" +
-                                     "************************************************"
+                                    issue.explanation + "\n" +
+                                    "************************************************"
                         )
                     }
                 }
@@ -457,23 +457,25 @@ $tagHtml
 <hr style="border: none; height: 1px; background-color: #003366;">
  
 <section>
-
-$overview
 The SAST tool flagged the following line of code as the cause of the vulnerability: $originalCodeSnippet
+
 </section>
 
 <section>
+$overview
 $explanation
 </section>
  
-          ${if (exampleHtml.isNotBlank()) """
+          ${
+            if (exampleHtml.isNotBlank()) """
 <section style="margin-top: 20px;">
 <details>
 <summary><h3 style="display: inline;">Demonstrative&nbsp;Example</h3></summary>
               $exampleCodeExplanation
               $exampleHtml
 </details>
-</section>""" else ""}
+</section>""" else ""
+        }
  
 <section style="margin-top: 20px;">
 <details>
