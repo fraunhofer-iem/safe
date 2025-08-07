@@ -14,7 +14,7 @@ import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.MessageBus
-import de.fraunhofer.iem.fixmysast.comm.EXPERTISE_LEVEL_CHANGE_TOPIC
+import de.fraunhofer.iem.fixmysast.comm.ExpertiseLevelNotifier
 import de.fraunhofer.iem.fixmysast.comm.ExplanationNotifier
 import de.fraunhofer.iem.fixmysast.llm.Explanation
 import de.fraunhofer.iem.fixmysast.llm.LlmClient
@@ -27,7 +27,6 @@ import org.intellij.markdown.parser.MarkdownParser
 import org.yaml.snakeyaml.Yaml
 import java.awt.BorderLayout
 import javax.swing.JPanel
-import de.fraunhofer.iem.fixmysast.comm.ExpertiseLevelChangeNotifier
 
 //Helper function for aesthetics
 class ExplanationPanel(private val project: Project) : JPanel() {
@@ -53,8 +52,7 @@ class ExplanationPanel(private val project: Project) : JPanel() {
         // Handle thumbs up/down feedback
         jsQuery.addHandler { feedback ->
             val issue = currentIssue
-            if(issue == null)
-            {
+            if (issue == null) {
                 println("Issue is null :)")
             }
             if (feedback == "bad" && issue != null) {
@@ -124,21 +122,32 @@ class ExplanationPanel(private val project: Project) : JPanel() {
             })
 
         project.messageBus.connect().subscribe(
-            EXPERTISE_LEVEL_CHANGE_TOPIC,
-            object : ExpertiseLevelChangeNotifier {
-                        override fun onExpertiseLevelChanged(project: Project) {
-                            println("Level change detected - refresshing explanation")
+            ExpertiseLevelNotifier.CHANGE_LEVEL_TOPIC,
+            object : ExpertiseLevelNotifier {
 
-                            currentIssue?.let { issue ->
+                override fun changeLevel(level: String) {
+                    println("Level change detected - refreshing explanation")
 
-                                issue.explanation = LlmClient.getExplanation(issue, project)
-                                showHtml(issue, jsQuery)
+                    currentIssue?.let { issue ->
 
-                            }
+                        issue.explanation = LlmClient.getExplanation(issue, project, level)
+                        showHtml(issue, jsQuery)
+
+                        println(
+                            "************************************************\n" +
+                                    issue.type + "\n" +
+                                    issue.location + "\n" +
+                                    level + "\n" +
+                                    "************************************************" +
+                                    issue.explanation +"\n" +
+                                     "************************************************"
+                        )
+                    }
                 }
             }
         )
     }
+
     /*
         Instruct chat respones to produce YAML
         parse YAML for proper vars
@@ -161,9 +170,6 @@ class ExplanationPanel(private val project: Project) : JPanel() {
     }
 
     private fun showHtml(issue: Issue, jsQuery: JBCefJSQuery) {
-        println("PRINT INSIDE SHOW HTML")
-
-        println(issue.explanation)
 
         ReadAction.nonBlocking<String> {
             val (overview,

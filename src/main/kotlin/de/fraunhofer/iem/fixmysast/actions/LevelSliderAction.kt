@@ -3,12 +3,9 @@ import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.notification.Notifications
-import com.intellij.openapi.actionSystem.*
-import com.intellij.openapi.actionSystem.ex.CustomComponentAction
-import de.fraunhofer.iem.fixmysast.ExplanationToolWindow
-import de.fraunhofer.iem.fixmysast.comm.EXPERTISE_LEVEL_CHANGE_TOPIC
-import de.fraunhofer.iem.fixmysast.llm.LevelStateService
-import de.fraunhofer.iem.fixmysast.ui.panel.ExplanationPanel
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import de.fraunhofer.iem.fixmysast.comm.ExpertiseLevelNotifier
 import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.JComponent
@@ -69,8 +66,8 @@ class LevelSliderAction : AnAction("Set Expertise Level") {
                 ),
                     project)
                 val bus = project.messageBus
-                val publisher = bus.syncPublisher(EXPERTISE_LEVEL_CHANGE_TOPIC)
-                publisher.onExpertiseLevelChanged(project)
+                val publisher = bus.syncPublisher(ExpertiseLevelNotifier.CHANGE_LEVEL_TOPIC)
+                publisher.changeLevel(curr.toString())
             }
         }
     }
