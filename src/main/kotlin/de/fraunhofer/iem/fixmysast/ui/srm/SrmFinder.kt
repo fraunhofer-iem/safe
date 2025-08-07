@@ -1,6 +1,4 @@
-package de.fraunhofer.iem.fixmysast.analysis
-
-import de.fraunhofer.iem.fixmysast.data.SrmLoader
+package de.fraunhofer.iem.fixmysast.ui.srm
 
 /***
  * Finds SRMs in the target application.

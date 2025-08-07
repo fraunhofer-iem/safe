@@ -19,7 +19,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.messages.MessageBus
 import de.fraunhofer.iem.fixmysast.PluginBundle
-import de.fraunhofer.iem.fixmysast.analysis.SrmFinder
+import de.fraunhofer.iem.fixmysast.ui.srm.SrmFinder
 import de.fraunhofer.iem.fixmysast.comm.DataflowNotifier
 import de.fraunhofer.iem.fixmysast.ui.icons.IconUtils
 import de.fraunhofer.iem.fixmysast.sast.DataFlowCategory
@@ -31,7 +31,7 @@ import java.awt.*
 import java.io.File
 import javax.swing.*
 
-class DataFlowPanel( val project: Project) : JPanel()  {
+class DataFlowPanel(val project: Project) : JPanel() {
 
     val bus: MessageBus = project.messageBus
 
@@ -78,7 +78,7 @@ class DataFlowPanel( val project: Project) : JPanel()  {
         val factory = EditorFactory.getInstance()
         val document: Document = factory.createDocument(fileContent)
 
-        editor = EditorFactory.getInstance().createEditor(document, project).apply{
+        editor = EditorFactory.getInstance().createEditor(document, project).apply {
             settings.isLineNumbersShown = true
             settings.isFoldingOutlineShown = true
             settings.isRightMarginShown = true
@@ -87,7 +87,7 @@ class DataFlowPanel( val project: Project) : JPanel()  {
 
         add(editor!!.component, BorderLayout.CENTER)
 
-        if (issue.hasDataFlowTrace){
+        if (issue.hasDataFlowTrace) {
             currentTraceIndex = -1
             annotateDataFlow(issue, editor)
             setupNavigationBar()
@@ -132,13 +132,25 @@ class DataFlowPanel( val project: Project) : JPanel()  {
                 HighlighterTargetArea.EXACT_RANGE
             )
 
-            highlighter.errorStripeTooltip = dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
+            highlighter.errorStripeTooltip =
+                dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
 
-            val icon: Icon = PluginIcons.SOURCE // Place-holder TODO Change to SRM-specific icon
+            var icon: Icon
+
+            if (dataFlowElement.type.toString().lowercase().contentEquals("source"))
+                icon = PluginIcons.SOURCE
+            else if (dataFlowElement.type.toString().lowercase().contentEquals("sink"))
+                icon = PluginIcons.SINK
+            else if (dataFlowElement.type.toString().lowercase().contentEquals("propagator"))
+                icon = PluginIcons.PROPAGATOR
+            else
+                icon = PluginIcons.DEFAULT
 
             highlighter.gutterIconRenderer = object : GutterIconRenderer() {
                 override fun getIcon(): Icon = icon
-                override fun getTooltipText(): String? = dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
+                override fun getTooltipText(): String? =
+                    dataFlowElement.name + " is a " + dataFlowElement.type.toString().lowercase() + "."
+
                 override fun equals(p0: Any?): Boolean = false
                 override fun hashCode(): Int = icon.hashCode()
             }
@@ -212,7 +224,8 @@ class DataFlowPanel( val project: Project) : JPanel()  {
         editor.caretModel.moveToOffset(currentElement.startOffset)
         editor.scrollingModel.scrollToCaret(ScrollType.CENTER)
 
-        dataFlowLabel.text = "<html><b>${currentElement.name}</b> is a <i>${currentElement.type.name.lowercase()}</i>.</span></html>"
+        dataFlowLabel.text =
+            "<html><b>${currentElement.name}</b> is a <i>${currentElement.type.name.lowercase()}</i>.</span></html>"
 
         val attributes = TextAttributes().apply {
             backgroundColor = getDataFlowHighlightColor(currentElement.type)
@@ -236,7 +249,7 @@ class DataFlowPanel( val project: Project) : JPanel()  {
         return when (type) {
             DataFlowCategory.SOURCE -> JBColor(Color(255, 217, 255), Color(255, 217, 255))
             DataFlowCategory.SINK -> JBColor(Color(255, 210, 192), Color(255, 210, 192))
-            DataFlowCategory.PROPAGATOR -> JBColor(Color(243, 255, 157), Color(243, 255, 157))
+            DataFlowCategory.PROPAGATOR -> JBColor(Color(137, 208, 255), Color(137, 208, 255))
         }
     }
 
@@ -275,14 +288,18 @@ class DataFlowPanel( val project: Project) : JPanel()  {
                         editor?.markupModel?.addRangeHighlighter(
                             start, end,
                             HighlighterLayer.ERROR,
-                            TextAttributes(null, Color.lightGray,
-                                Color.lightGray, EffectType.SEARCH_MATCH, Font.PLAIN),
+                            TextAttributes(
+                                null, Color.lightGray,
+                                Color.lightGray, EffectType.SEARCH_MATCH, Font.PLAIN
+                            ),
                             HighlighterTargetArea.EXACT_RANGE
                         )?.apply {
                             errorStripeTooltip = tooltip
                             gutterIconRenderer = object : GutterIconRenderer() {
                                 override fun getIcon() = IconUtils.getSRMGutterIcon(signature)
-                                override fun getTooltipText() = SrmFinder.getSrmAndCweCategory(signature).joinToString(",")
+                                override fun getTooltipText() =
+                                    SrmFinder.getSrmAndCweCategory(signature).joinToString(",")
+
                                 override fun equals(other: Any?) = false
                                 override fun hashCode() = icon.hashCode()
                             }

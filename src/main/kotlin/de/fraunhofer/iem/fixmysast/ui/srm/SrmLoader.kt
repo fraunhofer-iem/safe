@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.fixmysast.data
+package de.fraunhofer.iem.fixmysast.ui.srm
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -8,6 +8,11 @@ import java.io.InputStreamReader
 /***
  * Loads the SRMs from the SRM-Catalog json file.
  ***/
+data class Srm(
+    val signature: String,
+    val srm: List<String>,
+    val cwe: List<String>
+)
 
 object SrmLoader {
     val srmCatalogMethods: Map<String, Srm> by lazy {
