@@ -1,35 +1,58 @@
-<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<idea-plugin>
-    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Plugin Configuration File.  See https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin version="2">
+
+    <!-- ===== Basic metadata ===== -->
     <id>de.fraunhofer.iem.fixmysast</id>
-
-    <!-- Public plugin name should be written in Title Case.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
     <name>FixMySAST</name>
+    <vendor url="https://www.iem.fraunhofer.de/">Fraunhofer IEM</vendor>
 
-    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
-
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    Enter short description for your plugin here.<br>
-    <em>most HTML tags may be used</em>
+    Enter short description for your plugin here.
+<em>Most HTML tags may be used.</em>
   ]]></description>
 
-    <!-- Product and plugin compatibility requirements.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <!-- Platform dependency -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
 
-    <!-- Extension points defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <!-- ===== Extensions & listeners ===== -->
     <extensions defaultExtensionNs="com.intellij">
 
+        <!-- Tool-window registration -->
+        <toolWindow
+                id="FixMySAST"
+                factoryClass="de.fraunhofer.iem.fixmysast.ExplanationToolWindow"
+                anchor="right"
+                secondary="false"/>
     </extensions>
 
+    <!-- Project-level listener -->
     <projectListeners>
-        <listener class="de.fraunhofer.iem.fixmysast.ProblemsListener"
-                  topic="com.intellij.analysis.problemsView.ProblemsListener"/>
+        <listener
+                class="de.fraunhofer.iem.fixmysast.problems.ProblemsListener"
+                topic="com.intellij.analysis.problemsView.ProblemsListener"/>
     </projectListeners>
 
+    <!-- ===== Actions ===== -->
+    <actions>
+
+        <!-- Top-level group under Tools -->
+        <group id="FixMySast.Actions" text="FixMySAST" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <!-- Main “Run analysis” action -->
+            <action id="FixMySAST.Import"
+                    class="de.fraunhofer.iem.fixmysast.actions.ImportFileAction"
+                    text="Import File"
+                    icon="AllIcons.ToolbarDecorator.Import"
+                    description="Import SARIF file"/>
+
+            <action id="FixMySAST.LevelSliderAction"
+                    class="de.fraunhofer.iem.fixmysast.actions.LevelSliderAction"
+                    icon="AllIcons.Actions.More"
+                    text="Set Expertise Level"/>
+        </group>
+
+    </actions>
 </idea-plugin>
