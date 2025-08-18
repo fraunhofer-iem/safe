@@ -1,8 +1,12 @@
 package de.fraunhofer.iem.fixmysast.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.messages.MessageBus
@@ -17,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.io.File
 import java.util.*
 import java.util.concurrent.Executors
 import javax.swing.JMenuItem
@@ -246,28 +251,61 @@ class ResultsTree(private val project: Project) : Tree() {
 
     private fun showContextMenu(e: MouseEvent) {
         val node = getSelectedNode() ?: return
-        val issue = node.userObject as? Issue ?: return
-
         val popup = JPopupMenu()
-        val showInEditorItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.OPEN_IN_EDITOR_OPTION").get())
-        val showExplanationItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.SHOW_EXPLANATIONS_OPTION").get())
 
-        showInEditorItem.addActionListener {
-            val messageBus = project.messageBus
-            val publisher: DataflowNotifier =
-                messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
-            publisher.showEditor(issue)
-        }
-        showExplanationItem.addActionListener {
-            val messageBus = project.messageBus
-            val publisher: ExplanationNotifier =
-                messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
-            publisher.showExplanation(issue)
+        when (val userObject = node.userObject) {
+            is Issue -> {
+                val showInEditorItem = JMenuItem(
+                    PluginBundle.lazy("fixmysast.ui.issues.OPEN_IN_EDITOR_OPTION").get()
+                )
+                val showExplanationItem = JMenuItem(
+                    PluginBundle.lazy("fixmysast.ui.issues.SHOW_EXPLANATIONS_OPTION").get()
+                )
+
+                showInEditorItem.addActionListener {
+                    val messageBus = project.messageBus
+                    val publisher: DataflowNotifier =
+                        messageBus.syncPublisher(DataflowNotifier.SHOW_EDITOR_TOPIC)
+                    publisher.showEditor(userObject)
+                }
+                showExplanationItem.addActionListener {
+                    val messageBus = project.messageBus
+                    val publisher: ExplanationNotifier =
+                        messageBus.syncPublisher(ExplanationNotifier.SHOW_EXPLANATION_TOPIC)
+                    publisher.showExplanation(userObject)
+                }
+
+                popup.add(showInEditorItem)
+                popup.add(showExplanationItem)
+            }
+
+            is IssueLocation -> {
+                val parentNode = node.parent as? DefaultMutableTreeNode ?: return
+                val issue = parentNode.userObject as? Issue ?: return
+
+                val jumpToSourceItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.JUMP_TO_SOURCE_OPTION").get(), AllIcons.Actions.EditSource)
+                jumpToSourceItem.addActionListener {
+                    val relativePath = userObject.fileName ?: null
+                    val absolutePath = "${project.basePath}/$relativePath"
+                    val vFile = LocalFileSystem.getInstance()
+                        .findFileByIoFile(File(absolutePath))
+                    if (vFile != null) {
+                        val descriptor = OpenFileDescriptor(
+                            project,
+                            vFile,
+                            userObject.startLine - 1,
+                            -1
+                        )
+                        FileEditorManager.getInstance(project).openTextEditor(descriptor, true)
+                    }
+                }
+                popup.add(jumpToSourceItem)
+            }
         }
 
-        popup.add(showInEditorItem)
-        popup.add(showExplanationItem)
-        popup.show(e.component, e.x, e.y)
+        if (popup.componentCount > 0) {
+            popup.show(e.component, e.x, e.y)
+        }
     }
 
     private fun getSelectedNode(): DefaultMutableTreeNode? {
