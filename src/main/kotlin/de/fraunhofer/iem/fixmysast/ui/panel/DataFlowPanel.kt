@@ -51,8 +51,6 @@ class DataFlowPanel(val project: Project) : JPanel() {
 
         layout = BorderLayout()
 
-
-
         bus.connect().subscribe(
             DataflowNotifier.SHOW_EDITOR_TOPIC,
             object : DataflowNotifier {
@@ -230,7 +228,7 @@ class DataFlowPanel(val project: Project) : JPanel() {
         val attributes = TextAttributes().apply {
             backgroundColor = getDataFlowHighlightColor(currentElement.type)
             effectType = EffectType.SEARCH_MATCH
-            effectColor = Color.darkGray
+            effectColor = JBColor.DARK_GRAY
         }
 
         dataFlowHighlight = editor.markupModel.addRangeHighlighter(
