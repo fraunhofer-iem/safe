@@ -55,7 +55,7 @@ object LlmClient {
             ">>>>>>>>>>>>>>>>>>>>>>>>>>>\n" +
                     requestBody + "\n>>>>>>>>>>>>>>>>>>>>>>>>>>>"
         )
-        val llmConfig = getLLMConfig()
+        val llmConfig = LlmConfig()
 
         try {
             val response = HttpService.postJson(
