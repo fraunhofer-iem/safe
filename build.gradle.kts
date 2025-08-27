@@ -21,6 +21,7 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
 
+    implementation("com.openai:openai-java:3.1.2")
     intellijPlatform {
         create("IC", "2024.2.6")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)

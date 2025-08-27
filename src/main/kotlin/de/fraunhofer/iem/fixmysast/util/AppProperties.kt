@@ -19,13 +19,13 @@ object AppProperties {
 
     fun get(key: String): String? = props.getProperty(key)
 
+    val llmPlatform: String get() = props.getProperty("llm.platform")
+
     val apiKey: String? get() = props.getProperty("api.key")
 
-    val openaiApiUrl: String? get() = props.getProperty("openai.api.url")
+    val apiUrl: String? get() = props.getProperty("api.url")
 
-    val olamaApiUrl: String? get() = props.getProperty("olama.api.url")
+    val model: String? get() = props.getProperty("model")
 
-    val llmModel: String get() = props.getProperty("llm.model")
-
-    val llmTemperature: String get() = props.getProperty("llm.temperature")
+    val temperature: String get() = props.getProperty("model.temperature")
 }

@@ -35,7 +35,6 @@ class ResultsTree(private val project: Project) : Tree() {
     private lateinit var results: Results
     private var currentIssue: Issue? = null
     val bus: MessageBus = project.messageBus
-    var preloadSetting: Boolean = true
 
     init {
 
@@ -54,8 +53,6 @@ class ResultsTree(private val project: Project) : Tree() {
                     project
                 )
             )
-
-            explainResults(project)
             expandTree()
         } else {
             model = null
@@ -128,8 +125,6 @@ class ResultsTree(private val project: Project) : Tree() {
                     addTreeNodes(parseFile(sastFile, project))
                     PropertiesComponent.getInstance(project)
                         .setValue("de.fraunhofer.iem.fixmysast.file", sastFile)
-
-                    explainResults(project)
                 }
             })
         cellRenderer = ResultsTreeRenderer()
@@ -171,7 +166,7 @@ class ResultsTree(private val project: Project) : Tree() {
 
         for (issue in results.issues) {
 
-            val issueNode = DefaultMutableTreeNode( issue)
+            val issueNode = DefaultMutableTreeNode(issue)
             //group by issue types
             //val issueNode = searchNode(resultsTreeNode, issue)
 
@@ -214,7 +209,7 @@ class ResultsTree(private val project: Project) : Tree() {
         //change to only load file when clicked on
         ApplicationManager.getApplication().executeOnPooledThread {
 
-            issue.explanation = LlmClient.getExplanation(
+            issue.explanation = LlmClient.sendRequest(
                 issue, project,
                 level.toString()
             ).toString()
@@ -225,27 +220,26 @@ class ResultsTree(private val project: Project) : Tree() {
                         issue.location + "\n" +
                         level.toString() + "\n" +
                         "************************************************" +
-                        issue.explanation +"\n" +
+                        issue.explanation + "\n" +
                         "************************************************"
             )
         }
         //cellRenderer = ResultsTreeRenderer()
     }
 
-    fun explainResults(project: Project) {
+    fun explainAllResults(project: Project) {
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            println("START: "+ Calendar.getInstance().time)
+
             results.issues.forEach { issue ->
-                listOf("Beginner"
-                    , "Intermediate", "Advanced"
+                listOf(
+                    "Beginner", "Intermediate", "Advanced"
                 ).forEach { level ->
 
                     // This populates the cache for each level
-                    LlmClient.getExplanation(issue, project, level)
+                    LlmClient.sendRequest(issue, project, level)
                 }
             }
-            println("END: "+ Calendar.getInstance().time)
         }
     }
 
@@ -283,7 +277,10 @@ class ResultsTree(private val project: Project) : Tree() {
                 val parentNode = node.parent as? DefaultMutableTreeNode ?: return
                 val issue = parentNode.userObject as? Issue ?: return
 
-                val jumpToSourceItem = JMenuItem(PluginBundle.lazy("fixmysast.ui.issues.JUMP_TO_SOURCE_OPTION").get(), AllIcons.Actions.EditSource)
+                val jumpToSourceItem = JMenuItem(
+                    PluginBundle.lazy("fixmysast.ui.issues.JUMP_TO_SOURCE_OPTION").get(),
+                    AllIcons.Actions.EditSource
+                )
                 jumpToSourceItem.addActionListener {
                     val relativePath = userObject.fileName ?: null
                     val absolutePath = "${project.basePath}/$relativePath"

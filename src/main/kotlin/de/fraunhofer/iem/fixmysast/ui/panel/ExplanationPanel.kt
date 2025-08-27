@@ -130,7 +130,7 @@ class ExplanationPanel(private val project: Project) : JPanel() {
 
                     currentIssue?.let { issue ->
 
-                        issue.explanation = LlmClient.getExplanation(issue, project, level)
+                        issue.explanation = LlmClient.sendRequest(issue, project, level)
                         showHtml(issue, jsQuery)
 
                         println(

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Plugin Configuration File.  See https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<idea-plugin version="2">
+<idea-plugin>
 
     <!-- ===== Basic metadata ===== -->
     <id>de.fraunhofer.iem.fixmysast</id>
-    <name>FixMySAST</name>
+    <name>SAFE</name>
     <vendor url="https://www.iem.fraunhofer.de/">Fraunhofer IEM</vendor>
 
     <description><![CDATA[
@@ -21,8 +21,9 @@
 
         <!-- Tool-window registration -->
         <toolWindow
-                id="FixMySAST"
+                id="SAFE"
                 factoryClass="de.fraunhofer.iem.fixmysast.ExplanationToolWindow"
+                icon="AllIcons.Toolwindows.Documentation"
                 anchor="right"
                 secondary="false"/>
     </extensions>
@@ -38,7 +39,7 @@
     <actions>
 
         <!-- Top-level group under Tools -->
-        <group id="FixMySast.Actions" text="FixMySAST" popup="true">
+        <group id="FixMySast.Actions" text="SAFE" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <!-- Main “Run analysis” action -->

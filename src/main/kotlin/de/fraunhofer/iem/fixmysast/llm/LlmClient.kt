@@ -4,6 +4,9 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.project.Project
+import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.models.chat.completions.ChatCompletion
+import com.openai.models.chat.completions.ChatCompletionCreateParams
 import de.fraunhofer.iem.fixmysast.sast.Issue
 
 /**
@@ -15,6 +18,37 @@ object LlmClient {
     private val mapper = jacksonObjectMapper()
 
     private val explanationCache: MutableMap<String, String> = mutableMapOf()
+
+    /**
+     * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
+     */
+    fun sendRequest(issue: Issue?, project: Project, experienceLevel: String): String? {
+
+        val llmConfig = LlmConfig()
+
+        val client = OpenAIOkHttpClient.builder()
+            .baseUrl(llmConfig.apiURL)
+            .apiKey(llmConfig.apiKey)
+            .build()
+
+        val params = ChatCompletionCreateParams.builder()
+            .addSystemMessage(PromptTemplate.getSystemPrompt())
+            .addUserMessage(PromptTemplate.buildUserPrompt(issue, experienceLevel, project))
+            .model(llmConfig.model)
+            .temperature(llmConfig.temperature.toDouble())
+            .build()
+
+        val chatCompletion: ChatCompletion = client.chat().completions().create(params)
+
+          if (explanationCache.containsKey(params._body().toString())) {
+              return explanationCache[params._body().toString()]!!
+          } else {
+              explanationCache[params._body().toString()] = chatCompletion.choices().first().message()._content().toString()
+
+              return explanationCache[params._body().toString()]!!
+          }
+    }
+
 
     /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
@@ -55,7 +89,7 @@ object LlmClient {
             ">>>>>>>>>>>>>>>>>>>>>>>>>>>\n" +
                     requestBody + "\n>>>>>>>>>>>>>>>>>>>>>>>>>>>"
         )
-        val llmConfig = getLLMConfig()
+        val llmConfig = LlmConfig()
 
         try {
             val response = HttpService.postJson(
@@ -80,14 +114,14 @@ object LlmClient {
         val usrPromptJson = mapper.writeValueAsString(userPrompt)
         val sysPromptJson = mapper.writeValueAsString(systemPrompt)
         return """
-            {
-              "messages": [
-                {"role": "system", "content": $sysPromptJson},
-                {"role": "user", "content": $usrPromptJson}
-              ],
-              "temperature": $temperature
-            }
-        """.trimIndent()
+      {
+        "messages": [
+          {"role": "system", "content": $sysPromptJson},
+          {"role": "user", "content": $usrPromptJson}
+        ],
+        "temperature": $temperature
+      }
+  """.trimIndent()
     }
 
     /**

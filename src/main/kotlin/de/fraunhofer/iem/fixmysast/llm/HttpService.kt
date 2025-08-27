@@ -11,7 +11,7 @@ import java.net.URL
  * @author Ranjith
  */
 object HttpService {
-    fun postJson(config: LLMConfig, jsonBody: String): String {
+    fun postJson(config: LlmConfig, jsonBody: String): String {
         val connection = (URL(config.apiURL).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             setRequestProperty("api-key", config.apiKey)
