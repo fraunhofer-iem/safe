@@ -1,22 +1,22 @@
 
-## FixMySAST
+# SAFE - Static Analysis Findings Explainer
 
-FixMySAST is an IntelliJ plugin that utilizes large language models to explain the causes, impacts, and mitigation strategies of security vulnerabilities detected by SAST tools. The plugin creates a separate tool window in the IntelliJ IDE, and uses an expandable tree component to display the detected vulnerabilities. After clicking a vulnerability in the tree, the right-hand panel will display 3 key features: the original results from the SAST tool, the explanation from the LLM, and the data-flow, all in their respective tabs. The explanation tab shows the name of the detected vulnerabilities, tags assigned by the SAST tool, description of the result, a demonstrative example, general mitigation strategies extracted from OWASP, and thumbs up/down feedback buttons. The plugin also allows users to upload specific SARIF/JSON files for analysis, and has a toggle allowing users to change the expertise level of the explanations.
+SAFE helps developers understand security findings flagged by Static Application Security Testing (SAST) tools. It supports Static Analysis Results Interchange Format (SARIF) results and uses large language models (LLMs) to explain root causes, potential impacts, and practical mitigations for software vulnerabilities.
 
+![safe-plugin-demo.gif](docs/safe-plugin-demo.gif)
 
-### Reposistory Structure
+## SAFE Plugin Features
 
-gradle:
-src:
+- **SARIF support**
+  - Import SAST results in SARIF to view findings directly in IntelliJ IDEA plugin tool window. 
+- **LLM-powered explanations**
+  - For each finding, SAFE displays: vulnerability name, SAST tags, an explanation of the vulnerability, a demonstrative example, and mitigation strategies. 
+  - Quick thumbs up/down for feedback on explanation quality. 
+- **Audience-aware guidance** 
+  - Toggle explanation depth by experience level (beginner, intermediate, advanced). 
+- **Data-flow walkthrough**
+  - When available from the SAST report, step through the data flow for the selected finding.
 
-### Getting Started
+## How to Run
 
-- Clone the project and open it in IntelliJ IDEA
-- Rename the teplate `srm/main/resource/app.properties_template` file to `app.properties`
-- Update the OpenAI/Ollama API Key, URL and temeperature in `app.properties` file
-- Place the openAi URL and Olama URL in the `app.properties`
-- Select the model using the key `llm.model`. The supported values are `openai` for OpenAI model and `olama` for Olama model.
-- Run the plugin from the run option on the top.
-
-
-- In IntelliJ IDEA, go to File -> Settings -> Plugins, and Install Plugin from Disk.
+Clone the project, import it in IntelliJ IDEA, and edit app.properties to point SAFE to your LLM provider. Rename the [app.properties template](https://github.com/fraunhofer-iem/safe/blob/main/src/main/resources/app.properties_template) file to `app.properties`. Enter the LLM platform, API Key, endpoint and other settings.
