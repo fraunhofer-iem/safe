@@ -1,1 +1,1 @@
-rootProject.name = "fixmysast"
+rootProject.name = "safe"
