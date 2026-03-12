@@ -44,3 +44,5 @@ bin/
 .DS_Store
 
 *.properties
+/rag/.env
+.env
