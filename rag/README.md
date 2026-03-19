@@ -1,16 +1,18 @@
 # SAFE RAG Backend
 
-A small FastAPI backend for retrieval-grounded questions about a source code repository.
+FastAPI backend for retrieval-grounded explanation of software security findings in local code repositories.
 
-It indexes a local project, stores embeddings in FAISS, and exposes an agent endpoint that answers questions based on retrieved code and documentation.
+It builds a FAISS index over the codebase, loads Semgrep rules, Security-Relevant Methods (SRMs), and MITRE CWE metadata, and exposes an agent endpoint that answers only from retrieved evidence.
 
-## How it works
+## Features
 
-1. A project directory is scanned recursively.
-2. Code files are chunked with syntax-aware splitting.
-3. Documentation-like files are chunked with semantic splitting.
-4. The chunks are embedded and stored in FAISS.
-5. The agent uses retrieval results to answer questions about the codebase.
+- FAISS-based retrieval over a local codebase
+- Syntax-aware chunking for code
+- Semantic chunking for documentation
+- Semgrep rule retrieval
+- SRM lookup for security-relevant methods
+- MITRE CWE lookup for weakness descriptions
+- Agent endpoint for grounded explanations
 
 ## Setup
 
@@ -18,20 +20,42 @@ It indexes a local project, stores embeddings in FAISS, and exposes an agent end
 
 ```bash
 pip install fastapi uvicorn python-dotenv pydantic
-pip install langchain langchain-community langchain-classic
+pip install langchain langchain-community langchain-classic langchain-core
 pip install langchain-openai langchain-experimental langchain-text-splitters
 pip install faiss-cpu pypdf unstructured langfuse
 ```
 
 ### Environment
 
-Create a `.env` file in the project root:
+Create a `.env` file:
 
 ```env
 AZURE_OPENAI_ENDPOINT=...
-AZURE_OPENAI_KEY=...
+AZURE_OPENAI_API_KEY=...
 AZURE_OPENAI_API_VERSION=...
 AZURE_OPENAI_DEPLOYMENT=...
+AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-large-1
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=...
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_EMBEDDING_PRICE_PER_1M=...
+```
+
+## Required local data
+
+Place these files locally before startup:
+
+```text
+data/srms/java/srm-dataset-java.json
+data/srms/java/srm-dataset-java-android-sinks.json
+data/srms/java/srm-dataset-java-android-sources.json
+data/mitre-cwe/cwec_v4.19.1.xml
+```
+
+Semgrep paths used by the backend:
+
+```text
+data/semgrep/community
+data/semgrep/pro
 ```
 
 ## Run
@@ -40,49 +64,52 @@ AZURE_OPENAI_DEPLOYMENT=...
 python host_rag.py
 ```
 
-The server starts locally on port `8800`.
+Server runs on:
+
+```text
+http://localhost:8800
+```
 
 ## Main endpoint
-
-The main endpoint is:
 
 ```text
 POST /agent/explainer
 ```
 
-Use it to ask questions about the indexed project.
-
-### Example request
+Example:
 
 ```bash
 curl -X POST "http://localhost:8800/agent/explainer" \
   -H "Content-Type: application/json" \
   -d '{
-    "question": "How does this project parse SARIF results?"
+    "question": "Why is this method security relevant and what CWE is related?"
   }'
 ```
 
-### Example response
+## Other endpoints
 
-```json
-{
-  "answer": "..."
-}
+```text
+POST /keyword-search
+POST /semantic-search
+POST /hybrid-search
+POST /rebuild-index
+GET  /health
+POST /clone-and-rebuild
 ```
 
-## Rebuilding the index
-
-If you want to index a different project, rebuild the index first:
-
+Example:
 ```bash
-curl -X POST "http://localhost:8800/rebuild-index" \
+curl -X POST "http://localhost:8800/clone-and-rebuild" \
   -H "Content-Type: application/json" \
   -d '{
-    "root_dir": "/absolute/path/to/project"
+    "destination": "absolute path to destination",
+    "remote_repo": "https://github.com/srctips/polyglot.git"
   }'
 ```
 
 ## Notes
 
-- `/agent/explainer` is the normal endpoint for usage.
-- `/semantic-search`, `/keyword-search`, and `/hybrid-search` are mainly useful for manual inspection and debugging.
+- `/agent/explainer` is the main endpoint.
+- Search endpoints are mainly for debugging and inspection.
+- The agent can query codebase chunks, Semgrep rules, SRMs, and MITRE CWE entries.
+- Answers should be grounded only in retrieved evidence.
