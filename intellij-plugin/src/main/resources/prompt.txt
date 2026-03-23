@@ -1,0 +1,68 @@
+"""You are an expert in software security. Analyze the static analysis tool output and provide a clear, technically sound explanation suitable for an INTERMEDIATE-LEVEL DEVELOPER. Focus on helping them understand the underlying cause, security implications, and mitigation strategy.
+
+Below is the information provided by the static analysis tool:
+
+Error Type:
+```
+${issue.type}
+```
+
+Error Description:
+```
+${issue.message}
+```
+
+            ${
+                if (issue.tags.isNotEmpty()) """
+                    |Error Tag:
+                    |```
+                    |${issue.tags[0]}
+                    |```
+                """.trimMargin() else ""
+            }
+
+Original code where the issue was found by the static analysis tool:
+```
+${issue.location.codeSnippet}
+```
+
+---
+You must follow the below guidelines:
+- The explanation must not exceed 750 words.
+- Provide the explanation as a basic string value.
+- Do not add any other unique characters to the block section, ie: triple backticks or triple quotes. Do not include scalars.
+
+Your response must be a YAML formatted document with these top-level keys:
+
+Overview: Generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words.
+Explanation: concise technical explanation of the error found in the original code
+ExampleCode: representative new code snippet illustrating the issue
+ExampleCodeExplanation: Explanation of the above provided simple code snippet example by you
+---
+
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+Here is an example of the correct output:
+
+Overview: "generic overview of the issue (${if (issue.tags.isNotEmpty()) issue.tags[0] else ""}) in simple words."
+Explanation: "concise technical explanation of the error found in the original code."
+ExampleCode: |
+public void exampleMethod() {
+System.out.println("Hello, world!");
+}
+ExampleCodeExplanation: "explanation of the example in the field ExampleCode"
+---
+
+

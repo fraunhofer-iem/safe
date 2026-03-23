@@ -3,7 +3,7 @@
 
 SAFE helps developers understand security findings flagged by Static Application Security Testing (SAST) tools. It supports Static Analysis Results Interchange Format (SARIF) results and uses large language models (LLMs) to explain root causes, potential impacts, and practical mitigations for software vulnerabilities.
 
-![safe-plugin-demo.gif](docs/safe-plugin-demo.gif)
+![safe-plugin-demo.gif](intellij-plugin/docs/safe-plugin-demo.gif)
 
 ## SAFE Plugin Features
 
