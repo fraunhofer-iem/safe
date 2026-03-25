@@ -11,9 +11,35 @@ from langchain_openai import OpenAIEmbeddings
 
 from langchain_community.vectorstores import FAISS
 
+from cost_tracing import TracedAzureOpenAIEmbeddings
+
 load_dotenv()
 
 
+def get_azure_embeddings_with_tracing():
+    price_raw = os.getenv("AZURE_OPENAI_EMBEDDING_PRICE_PER_1M", "").strip()
+    price = float(price_raw) if price_raw else None
+
+    return TracedAzureOpenAIEmbeddings(
+        model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+        price_per_1m_tokens=price,
+    )
+
+def get_azure_embeddings():
+    return AzureOpenAIEmbeddings(
+        model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+    )
+
+def get_openai_embeddings():
+    return OpenAIEmbeddings(model="text-embedding-3-large")
 
 
 def clone_or_pull(repo_url: str, target_dir: Path):
@@ -119,7 +145,8 @@ def build_semgrep_index(index_dir, community_repo_url, community_dir, pro_dir, e
     #     azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
     # )
 
-    embeddings = OpenAIEmbeddings(model=embedding_model)
+    embeddings = get_azure_embeddings()
+    # embeddings = get_openai_embeddings()
 
     faiss_file = index_dir / "index.faiss"
     pkl_file = index_dir / "index.pkl"

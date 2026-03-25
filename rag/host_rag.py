@@ -10,8 +10,6 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 
 from fastapi import FastAPI, HTTPException, Request
-from git import Repo
-import shutil
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
@@ -330,7 +328,7 @@ def chunk_documents(docs: List[Document], embeddings) -> List[Document]:
     return chunked_docs
 
 
-def get_azure_embeddings():
+def get_azure_embeddings_with_tracing():
     price_raw = os.getenv("AZURE_OPENAI_EMBEDDING_PRICE_PER_1M", "").strip()
     price = float(price_raw) if price_raw else None
 
@@ -341,6 +339,15 @@ def get_azure_embeddings():
         api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
         price_per_1m_tokens=price,
+    )
+
+def get_azure_embeddings():
+    return AzureOpenAIEmbeddings(
+        model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
     )
 def get_openai_embeddings():
     return OpenAIEmbeddings(model=EMBEDDING_MODEL)
@@ -353,8 +360,8 @@ def get_openai_embeddings():
 def initialize_rag_system(root_dir: str):
     if is_index_valid(root_dir):
         print("Valid FAISS index found. Loading from cache...")
-        # embeddings = get_azure_embeddings()
-        embeddings = get_openai_embeddings()
+        embeddings = get_azure_embeddings()
+        # embeddings = get_openai_embeddings()
         vectorstore = FAISS.load_local(
             FAISS_INDEX_PATH,
             embeddings,
@@ -377,8 +384,8 @@ def initialize_rag_system(root_dir: str):
     docs = load_all_documents(root_dir)
     print(f"Loaded {len(docs)} documents")
 
-    # embeddings = get_azure_embeddings()
-    embeddings = get_openai_embeddings()
+    embeddings = get_azure_embeddings()
+    # embeddings = get_openai_embeddings()
     chunked_docs = chunk_documents(docs, embeddings)
     print(f"Created {len(chunked_docs)} chunks")
 
@@ -572,9 +579,6 @@ class AgentResponse(BaseModel):
 class RebuildIndexRequest(BaseModel):
     root_dir: str
 
-class CloneAndRebuildRequest(BaseModel):
-    destination: str
-    remote_repo: str
 
 # ============================================
 # Search Endpoints
@@ -708,58 +712,6 @@ async def rebuild_index(payload: RebuildIndexRequest, request: Request):
             "status": "success",
             "message": "Index rebuilt successfully",
             "root_dir": root_dir,
-            "chunks": len(request.app.state.all_chunks),
-            "vectors": request.app.state.vectorstore.index.ntotal,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/clone-and-rebuild")
-async def clone_and_rebuild(payload: CloneAndRebuildRequest, request: Request):
-    global CODEBASE_PATH
-
-    try:
-        destination = os.path.abspath(payload.destination)
-        remote_repo = payload.remote_repo.strip()
-
-        parent_dir = os.path.dirname(destination)
-        if parent_dir and not os.path.isdir(parent_dir):
-            os.makedirs(parent_dir, exist_ok=True)
-
-        if os.path.exists(destination):
-            shutil.rmtree(destination)
-
-        Repo.clone_from(remote_repo, destination)
-
-        CODEBASE_PATH = destination
-
-        if os.path.exists(CACHE_FILE):
-            os.remove(CACHE_FILE)
-
-        vectorstore, all_chunks, embeddings = initialize_rag_system(destination)
-
-        request.app.state.vectorstore = vectorstore
-        request.app.state.all_chunks = all_chunks
-        request.app.state.embeddings = embeddings
-
-        request.app.state.agent = create_agent_executor(
-            vectorstore=request.app.state.vectorstore,
-            all_chunks=request.app.state.all_chunks,
-            semgrep_vector_store=request.app.state.semgrep_vectorstore,
-            srm_store=request.app.state.srm_store,
-            cwe_store=request.app.state.cwe_store,
-            norm_fn=_norm,
-        )
-
-        return {
-            "status": "success",
-            "message": "Repository cloned and index rebuilt successfully",
-            "remote_repo": remote_repo,
-            "destination": destination,
             "chunks": len(request.app.state.all_chunks),
             "vectors": request.app.state.vectorstore.index.ntotal,
         }
