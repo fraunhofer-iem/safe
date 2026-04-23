@@ -1,0 +1,17 @@
+<!--
+  Plugin logo: flat geometric shield with question mark.
+  Straight corners and edges, no curves, no rounded shapes.
+  16x16, single-color flat shapes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+    <!-- Shield: flat polygon, straight edges -->
+    <polygon points="8,1 2,4 2,9 8,15 14,9 14,4" fill="#4A90D9"/>
+    <!-- Question mark stem: straight rectangle -->
+    <rect x="7" y="6" width="2" height="4" fill="white"/>
+    <!-- Question mark top bar -->
+    <rect x="7" y="4" width="4" height="2" fill="white"/>
+    <!-- Question mark right bar -->
+    <rect x="9" y="4" width="2" height="4" fill="white"/>
+    <!-- Question mark dot: square -->
+    <rect x="7" y="11" width="2" height="2" fill="white"/>
+</svg>

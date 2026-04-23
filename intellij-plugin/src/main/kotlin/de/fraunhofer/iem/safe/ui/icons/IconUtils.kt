@@ -2,7 +2,7 @@ package de.fraunhofer.iem.safe.ui.icons
 
 import com.intellij.openapi.util.IconLoader
 import de.fraunhofer.iem.safe.PluginBundle
-import de.fraunhofer.iem.safe.ui.srm.SrmFinder
+import de.fraunhofer.iem.safe.srm.SrmFinder
 import javax.swing.Icon
 
 /***
