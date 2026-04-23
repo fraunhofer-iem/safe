@@ -20,12 +20,10 @@
     <extensions defaultExtensionNs="com.intellij">
 
         <!-- Tool-window registration -->
-        <toolWindow
-                id="SAFE"
-                factoryClass="de.fraunhofer.iem.safe.ExplanationToolWindow"
-                icon="AllIcons.Toolwindows.Documentation"
-                anchor="right"
-                secondary="false"/>
+        <toolWindow id="SAFE"
+                    anchor="bottom"
+                    factoryClass="de.fraunhofer.iem.safe.ExplainerToolWindowFactory"
+                    icon="/icons/toolWindowChat.svg"/>
     </extensions>
 
     <!-- Project-level listener -->
