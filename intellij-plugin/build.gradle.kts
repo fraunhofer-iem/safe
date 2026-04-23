@@ -23,6 +23,7 @@ dependencies {
         intellijIdeaUltimate("2025.3")
         bundledPlugin("com.intellij.java")
         testFramework(TestFrameworkType.Platform)
+        plugin("org.intellij.qodana:261.22158.299")
 
         // Add necessary plugin dependencies for compilation here, example:
        // bundledPlugin("org.intellij.qodana")
