@@ -40,17 +40,13 @@
         <group id="FixMySast.Actions" text="SAFE" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
-            <!-- Main “Run analysis” action -->
-            <action id="FixMySAST.Import"
-                    class="de.fraunhofer.iem.safe.actions.ImportFileAction"
-                    text="Import File"
-                    icon="AllIcons.ToolbarDecorator.Import"
-                    description="Import SARIF file"/>
-
-            <action id="FixMySAST.LevelSliderAction"
-                    class="de.fraunhofer.iem.safe.actions.LevelSliderAction"
-                    icon="AllIcons.Actions.More"
-                    text="Set Expertise Level"/>
+            <action id="Safe.ExplainVulnerabilityAction"
+                    class="de.fraunhofer.iem.safe.actions.ExplainVulnerabilityAction"
+                    text="Explain Vulnerability"
+                    description="Get an AI explanation of the selected vulnerability"
+                    icon="/icons/toolWindowChat.svg">
+                <add-to-group group-id="ProblemsView.ToolWindow.TreePopup" anchor="last"/>
+            </action>
         </group>
 
     </actions>
