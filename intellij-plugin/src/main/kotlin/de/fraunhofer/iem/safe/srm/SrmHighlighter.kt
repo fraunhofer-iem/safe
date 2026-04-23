@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.safe.ui.srm
+package de.fraunhofer.iem.safe.srm
 
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.colors.TextAttributesKey

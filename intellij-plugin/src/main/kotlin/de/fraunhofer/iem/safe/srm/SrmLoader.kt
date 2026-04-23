@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.safe.ui.srm
+package de.fraunhofer.iem.safe.srm
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken

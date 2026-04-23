@@ -1,4 +1,4 @@
-package de.fraunhofer.iem.safe.ui.srm
+package de.fraunhofer.iem.safe.srm
 
 /***
  * Finds SRMs in the target application.
