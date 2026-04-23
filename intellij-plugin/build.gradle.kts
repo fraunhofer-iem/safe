@@ -30,7 +30,7 @@ dependencies {
 
     }
     implementation("org.yaml:snakeyaml:2.0")
-    implementation("com.openai:openai-java:3.1.2")
+    implementation("com.openai:openai-java:4.30.0")
     //implementation("org.jetbrains.qodana:plugin:2025.1.1")
    // implementation("org.intellij.markdown:markdown:0.5.0")
 }
