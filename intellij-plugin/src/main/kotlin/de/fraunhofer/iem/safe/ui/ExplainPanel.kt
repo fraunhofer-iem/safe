@@ -721,65 +721,27 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val howText = sections["how"] ?: ""
 
         return buildString {
-            appendLine("""
-            <html>
-            <head><style>
-                body {
-                    margin: 0; padding: 0;
-                    background-color: $panelHex;
-                    font-family: '${UIUtil.getLabelFont().family}', sans-serif;
-                    font-size: ${UIUtil.getLabelFont().size}pt;
-                    color: $fgHex;
+            appendLine(htmlHead())
+
+            val cweLabel = if (cweName.isNotBlank()) "${cweId.escapeHtml()} ${cweName.escapeHtml()}" else cweId.escapeHtml()
+            val llmTitle = sections["title"]?.takeIf { it.isNotBlank() }?.escapeHtml()
+            if (llmTitle != null) {
+                appendLine("""<h1>$llmTitle</h1>""")
+                // Pull the curated short name from CWE_MAPPING (ignoring whatever long
+                // description might be sitting in entry.cwe.name from a Semgrep tag).
+                val shortName = entry.cwe?.id?.let {
+                    QodanaNodeExtractor.cweFromTagString(it).name?.takeIf { n -> n.isNotBlank() }
                 }
-                .header {
-                    padding: 10px 14px;
-                    border-bottom: 1px solid $borderHex;
+                val badgeUrl = CweBadge.urlFor(entry.cwe?.id, shortName)
+                if (badgeUrl != null) {
+                    appendLine("""<p class="cwe-line"><img src="$badgeUrl"/></p>""")
+                } else if (cweLabel.isNotBlank()) {
+                    appendLine("""<p class="cwe-tag">$cweLabel</p>""")
                 }
-                .header .id {
-                    font-size: ${UIUtil.getLabelFont().size + 2}pt;
-                    font-weight: bold;
-                    color: $linkHex;
-                }
-                .header .name {
-                    color: $mutedHex;
-                    font-size: ${UIUtil.getLabelFont().size}pt;
-                    margin-left: 6px;
-                }
-                .header .filepath {
-                    color: $mutedHex;
-                    font-size: ${UIUtil.getLabelFont().size - 1}pt;
-                    font-family: monospace;
-                    margin-top: 4px;
-                }
-                .content {
-                    padding: 6px 14px 14px 14px;
-                }
-                .section {
-                    margin-top: 10px;
-                }
-                .section-title {
-                    font-weight: bold;
-                    font-size: ${UIUtil.getLabelFont().size}pt;
-                    color: $fgHex;
-                    margin: 0 0 4px 0;
-                    padding: 0;
-                }
-                .section-body {
-                    color: $fgHex;
-                    line-height: 1.5;
-                    margin: 0;
-                }
-                .section-body p {
-                    margin: 2px 0;
-                }
-                .separator {
-                    border: none;
-                    border-top: 1px solid $borderHex;
-                    margin: 10px 0 0 0;
-                }
-            </style></head>
-            <body>
-        """.trimIndent())
+            } else {
+                // Cached or older response without a TITLE section — fall back to the CWE.
+                appendLine("""<h1>$cweLabel</h1>""")
+            }
 
             // Header
             appendLine("""<div class="header">""")
