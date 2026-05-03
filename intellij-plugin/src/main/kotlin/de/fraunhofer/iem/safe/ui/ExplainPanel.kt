@@ -219,6 +219,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     init {
+        add(buildSideToolbar(), BorderLayout.WEST)
         add(splitter, BorderLayout.CENTER)
 
         tree.addTreeSelectionListener {
@@ -229,6 +230,64 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 setHtmlContent(formatEntryAsHtml(userObject))
             }
         }
+            when (val userObject = selectedNode.userObject) {
+                is ExplanationTreeEntry -> {
+                    if (userObject != currentEntry) {
+                        currentEntry = userObject
+                        sastMessageExpanded = false
+                        deepDiveExpanded = false
+                    }
+                    setHtmlContent(formatEntryAsHtml(userObject))
+                    val traces = lookupTraces(userObject)
+                    updateFlowsPane(traces)
+                    VulnerabilityHighlightService.getInstance(project)
+                        .applyTraceHighlights(project, traces, cachedStepExplanations)
+                    FindingsSnapshotService.getInstance(project).lastSelectedKey =
+                        "${userObject.inspectionId}::${userObject.filePath ?: ""}"
+                }
+                is CweNodeEntry -> {
+                    currentEntry = null
+                    setHtmlContent(formatCweAsHtml(userObject, selectedNode))
+                    updateFlowsPane(emptyList())
+                    VulnerabilityHighlightService.getInstance(project).clearTraceHighlights()
+                }
+            }
+        }
+
+        // Double-click a finding leaf to jump to its line in the editor.
+        tree.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount != 2) return
+                val path = tree.getPathForLocation(e.x, e.y) ?: return
+                val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
+                val entry = node.userObject as? ExplanationTreeEntry ?: return
+                navigateToEntry(entry)
+            }
+        })
+
+        // Single-click a trace or step to reveal the explanation pane below the flows tree.
+        flowsTree.addTreeSelectionListener {
+            val selectedNode = flowsTree.lastSelectedPathComponent as? DefaultMutableTreeNode
+            handleFlowsSelection(selectedNode)
+        }
+
+        // Double-click a step in the flows pane to jump to that step's location.
+        flowsTree.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount != 2) return
+                val path = flowsTree.getPathForLocation(e.x, e.y) ?: return
+                val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
+                val step = node.userObject as? TaintStep ?: return
+                navigateToStep(step)
+            }
+        })
+
+        loadCachedExplanations()
+        loadStoredFindings()
+        maybeRefreshFromQodana()
+        restoreLastSelection()
+        installTreePopup()
+
         // Parse the 15 MB CWE catalog off the EDT so the first CWE-row click doesn't stall.
         ApplicationManager.getApplication().executeOnPooledThread { CweCatalog.descriptions }
 
@@ -475,7 +534,34 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val findings = storage.getAll().map { it.vulnerability }
         if (findings.isNotEmpty()) addFindings(findings)
     }
+
+    /**
+     * If the persisted snapshot was sourced from Qodana, compares its fingerprint to the
+     * current Qodana tool window contents. When Qodana has different findings, replaces
+     * the storage + snapshot + tree with the live data. When Qodana isn't yet loaded
+     * ([QodanaNodeExtractor.extractAll] returns empty), keeps the snapshot.
+     */
+    private fun maybeRefreshFromQodana() {
+        val snapshot = FindingsSnapshotService.getInstance(project)
+        if (snapshot.source != FindingsSnapshotService.Source.QODANA) return
+        val live = QodanaNodeExtractor.extractAll(project)
+        if (live.isEmpty()) return
+        if (FindingsSnapshotService.fingerprintOf(live) == snapshot.fingerprint) return
+
+        val storage = ExplanationStorageService.getInstance(project)
+        storage.clear()
+        for (finding in live) {
+            if (finding.filePath == null || finding.startLine == null) continue
+            storage.store(ExplanationStorageService.ExplanationEntry(finding, ""))
+        }
+        snapshot.save(FindingsSnapshotService.Source.QODANA, live)
+
+        // Rebuild tree from cache + new storage.
+        rootNode.removeAllChildren()
+        explanations.clear()
+        treeModel.reload(rootNode)
         loadCachedExplanations()
+        loadStoredFindings()
     }
 
     // ── Tree Structure Helpers ────────────────────────────────────────────────
@@ -515,52 +601,86 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         return DefaultMutableTreeNode(DirectoryNodeEntry(dirPath)).also { cweNode.add(it) }
     }
 
-    private fun selectEntryInTree(entry: ExplanationTreeEntry) {
-        val targetCwe = entry.cwe ?: Cwe(id = entry.inspectionId)
-        val key = "${entry.inspectionId}::${entry.filePath ?: ""}"
-
-        for (i in 0 until rootNode.childCount) {
-            val cweNode = rootNode.getChildAt(i) as DefaultMutableTreeNode
-            val nodeEntry = cweNode.userObject as? CweNodeEntry ?: continue
-            if (!cwesMatch(nodeEntry.cwe, targetCwe)) continue
-
-            for (j in 0 until cweNode.childCount) {
-                val dirNode = cweNode.getChildAt(j) as DefaultMutableTreeNode
-                for (k in 0 until dirNode.childCount) {
-                    val fileNode = dirNode.getChildAt(k) as DefaultMutableTreeNode
-                    val obj = fileNode.userObject as? ExplanationTreeEntry ?: continue
-                    if ("${obj.inspectionId}::${obj.filePath ?: ""}" == key) {
-                        val path = TreePath(fileNode.path)
-                        tree.selectionPath = path
-                        tree.scrollPathToVisible(path)
-                        return
+    private fun findFileNode(key: String): DefaultMutableTreeNode? {
+        for (g in 0 until rootNode.childCount) {
+            val groupNode = rootNode.getChildAt(g) as DefaultMutableTreeNode
+            if (groupNode.userObject !is StatusGroupEntry) continue
+            for (i in 0 until groupNode.childCount) {
+                val cweNode = groupNode.getChildAt(i) as DefaultMutableTreeNode
+                for (j in 0 until cweNode.childCount) {
+                    val dirNode = cweNode.getChildAt(j) as DefaultMutableTreeNode
+                    for (k in 0 until dirNode.childCount) {
+                        val fileNode = dirNode.getChildAt(k) as DefaultMutableTreeNode
+                        val obj = fileNode.userObject as? ExplanationTreeEntry ?: continue
+                        if ("${obj.inspectionId}::${obj.filePath ?: ""}" == key) return fileNode
                     }
                 }
             }
         }
+        return null
+    }
+
+    private fun selectEntryInTree(entry: ExplanationTreeEntry) {
+        val key = "${entry.inspectionId}::${entry.filePath ?: ""}"
+        val fileNode = findFileNode(key) ?: return
+        val path = TreePath(fileNode.path)
+        tree.selectionPath = path
+        tree.scrollPathToVisible(path)
+    }
+
+    /**
+     * Re-selects the leaf the user had selected in the previous IDE session, if it still
+     * exists in the tree. Setting `tree.selectionPath` auto-expands ancestor nodes, so the
+     * user lands exactly where they left off.
+     */
+    private fun restoreLastSelection() {
+        val key = FindingsSnapshotService.getInstance(project).lastSelectedKey ?: return
+        val fileNode = findFileNode(key) ?: return
+        val path = TreePath(fileNode.path)
+        tree.selectionPath = path
+        tree.scrollPathToVisible(path)
+    }
+
+    /** Public navigation entry point — selects the SAFE tree row matching the given finding key. */
+    fun selectByInspection(inspectionId: String?, filePath: String?) {
+        if (inspectionId == null) return
+        val key = "$inspectionId::${filePath ?: ""}"
+        val fileNode = findFileNode(key) ?: return
+        val path = TreePath(fileNode.path)
+        tree.selectionPath = path
+        tree.scrollPathToVisible(path)
+        tree.requestFocus()
     }
 
     private fun updateEntryInTree(entry: ExplanationTreeEntry, key: String) {
-        val targetCwe = entry.cwe ?: Cwe(id = entry.inspectionId)
+        val fileNode = findFileNode(key) ?: return
+        val targetExplained = entry.rawResponse.isNotBlank()
 
-        for (i in 0 until rootNode.childCount) {
-            val cweNode = rootNode.getChildAt(i) as DefaultMutableTreeNode
-            val nodeEntry = cweNode.userObject as? CweNodeEntry ?: continue
-            if (!cwesMatch(nodeEntry.cwe, targetCwe)) continue
+        // Locate the containing StatusGroupEntry by walking up the parents.
+        val dirNode = fileNode.parent as? DefaultMutableTreeNode
+        val cweNode = dirNode?.parent as? DefaultMutableTreeNode
+        val groupNode = cweNode?.parent as? DefaultMutableTreeNode
+        val groupEntry = groupNode?.userObject as? StatusGroupEntry
 
-            for (j in 0 until cweNode.childCount) {
-                val dirNode = cweNode.getChildAt(j) as DefaultMutableTreeNode
-                for (k in 0 until dirNode.childCount) {
-                    val fileNode = dirNode.getChildAt(k) as DefaultMutableTreeNode
-                    val obj = fileNode.userObject as? ExplanationTreeEntry ?: continue
-                    if ("${obj.inspectionId}::${obj.filePath ?: ""}" == key) {
-                        fileNode.userObject = entry
-                        treeModel.nodeChanged(fileNode)
-                        return
-                    }
-                }
+        if (groupEntry?.explained == targetExplained) {
+            // No status change — update in place.
+            fileNode.userObject = entry
+            treeModel.nodeChanged(fileNode)
+            return
+        }
+
+        // Status changed: detach from the old hierarchy and re-insert via the normal path.
+        if (dirNode != null) dirNode.remove(fileNode)
+        if (cweNode != null) {
+            (cweNode.userObject as? CweNodeEntry)?.let { it.count-- }
+            if (dirNode != null && dirNode.childCount == 0) cweNode.remove(dirNode)
+            if (cweNode.childCount == 0 && groupNode != null) {
+                groupNode.remove(cweNode)
+                if (groupNode.childCount == 0) rootNode.remove(groupNode)
             }
         }
+        insertEntryIntoTree(entry)
+        treeModel.reload(rootNode)
     }
 
 
@@ -852,6 +972,45 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private fun colorToHex(color: Color): String =
         String.format("#%02x%02x%02x", color.red, color.green, color.blue)
+
+    private fun String.escapeHtml(): String =
+        replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+    private fun formatCweAsHtml(cweEntry: CweNodeEntry, cweNode: DefaultMutableTreeNode): String {
+        val cwe = cweEntry.cwe
+        val cweId = cwe.id ?: ""
+        val cweName = cwe.name ?: ""
+        val tagDescription = cwe.description?.takeIf { it.isNotBlank() }
+
+        return buildString {
+            appendLine(htmlHead())
+
+            val title = if (cweName.isNotBlank()) "${cweId.escapeHtml()} ${cweName.escapeHtml()}" else cweId.escapeHtml()
+            appendLine("""<h1>$title</h1>""")
+
+            // Description from the bundled MITRE CWE XML catalog; falls back to the verbose
+            // tag text if a finding's CWE id isn't in the catalog.
+            val descriptionText = CweCatalog.descriptionFor(cweId) ?: tagDescription
+            appendLine("""<div class="section">""")
+            if (descriptionText != null) {
+                appendLine("""<div class="section-body">${descriptionText.escapeHtml()}</div>""")
+            } else {
+                appendLine("""<p class="muted" style="font-style:italic; margin:0;">No description available.</p>""")
+            }
+            if (cweId.startsWith("CWE-")) {
+                val number = cweId.removePrefix("CWE-")
+                appendLine(
+                    """<p style="margin-top:6px;">"""
+                        + """<a href="https://cwe.mitre.org/data/definitions/$number.html">Read more on cwe.mitre.org &rarr;</a>"""
+                        + """</p>"""
+                )
+            }
+            appendLine("""</div>""")
+
+            appendLine("""</body></html>""")
+        }
+    }
+
 
     private fun buildSideToolbar(): JComponent {
         val group = DefaultActionGroup().apply {

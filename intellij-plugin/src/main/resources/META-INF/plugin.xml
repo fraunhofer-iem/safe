@@ -38,9 +38,9 @@
 
     <!-- Project-level listener -->
     <projectListeners>
-        <listener
-                class="de.fraunhofer.iem.safe.problems.ProblemsListener"
-                topic="com.intellij.analysis.problemsView.ProblemsListener"/>
+        <listener class="de.fraunhofer.iem.safe.ui.VulnerabilityEditorListener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+
     </projectListeners>
 
     <!-- ===== Actions ===== -->
