@@ -1,4 +1,3 @@
-import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -22,7 +21,6 @@ dependencies {
     intellijPlatform {
         intellijIdeaUltimate("2025.3")
         bundledPlugin("com.intellij.java")
-        testFramework(TestFrameworkType.Platform)
         plugin("org.intellij.qodana:261.22158.299")
 
         // Add necessary plugin dependencies for compilation here, example:
@@ -31,7 +29,16 @@ dependencies {
 
     }
     implementation("org.yaml:snakeyaml:2.0")
-    implementation("com.openai:openai-java:4.30.0")
+    implementation("com.google.code.gson:gson:2.11.0")
+
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    // The IntelliJ Platform Gradle plugin's `prepareTest` injects scaffolding that pulls
+    // in JUnit 4 classes; expose them so the test executor can start, even though our own
+    // tests use JUnit Jupiter.
+    testImplementation("junit:junit:4.13.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.2")
     //implementation("org.jetbrains.qodana:plugin:2025.1.1")
    // implementation("org.intellij.markdown:markdown:0.5.0")
 }
@@ -56,5 +63,8 @@ tasks {
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+    }
+    test {
+        useJUnitPlatform()
     }
 }
