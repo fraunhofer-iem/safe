@@ -64,11 +64,26 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private val rootNode = DefaultMutableTreeNode("Explanations")
     private val treeModel = DefaultTreeModel(rootNode)
-    private val tree = Tree(treeModel).apply {
+    private val tree = object : Tree(treeModel), UiDataProvider {
+        override fun getToolTipText(event: MouseEvent): String? {
+            val path = getPathForLocation(event.x, event.y) ?: return super.getToolTipText(event)
+            val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return null
+            val cwe = (node.userObject as? CweNodeEntry)?.cwe ?: return null
+            val description = cwe.description?.takeIf { it.isNotBlank() } ?: return null
+            val id = cwe.id ?: ""
+            return "<html><b>$id</b><br/>$description</html>"
+        }
+
+        override fun uiDataSnapshot(sink: DataSink) {
+            val selected = (lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? ExplanationTreeEntry
+            sink[SAFE_TREE_ENTRY_KEY] = selected
+        }
+    }.apply {
         isRootVisible = false
         showsRootHandles = true
         cellRenderer = ExplanationTreeCellRenderer()
         emptyText.text = "Select a vulnerability from Qodana for explanations"
+        ToolTipManager.sharedInstance().registerComponent(this)
     }
 
     private fun updateEmptyState() {
@@ -83,6 +98,22 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         //kit.styleSheet = createStyleSheet()
         editorKit = kit
         background = UIUtil.getPanelBackground()
+        ToolTipManager.sharedInstance().registerComponent(this)
+        addHyperlinkListener { event ->
+            if (event.eventType != HyperlinkEvent.EventType.ACTIVATED) return@addHyperlinkListener
+            val href = event.description.orEmpty()
+            if (href.endsWith("toggle-sast")) {
+                sastMessageExpanded = !sastMessageExpanded
+                currentEntry?.let { setHtmlContent(formatEntryAsHtml(it)) }
+                return@addHyperlinkListener
+            }
+            if (href.endsWith("toggle-deepdive")) {
+                deepDiveExpanded = !deepDiveExpanded
+                currentEntry?.let { setHtmlContent(formatEntryAsHtml(it)) }
+                return@addHyperlinkListener
+            }
+            event.url?.let { BrowserUtil.browse(it) }
+        }
     }
 
     private val detailPanel = JPanel(BorderLayout()).apply {
@@ -791,8 +822,32 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 
-            appendLine("""</div></body></html>""")
+    /**
+     * Walks the HTMLDocument element tree at the cursor position looking for a `title`
+     * attribute on any ancestor. Used to surface `<abbr title="...">` glossary tooltips,
+     * which JEditorPane otherwise ignores.
+     */
+    private fun htmlTitleAt(pane: JEditorPane, event: MouseEvent): String? {
+        val doc = pane.document as? javax.swing.text.html.HTMLDocument ?: return null
+        val pos = pane.viewToModel2D(event.point)
+        if (pos < 0) return null
+        var elem: javax.swing.text.Element? = doc.getCharacterElement(pos)
+        while (elem != null) {
+            val attrs = elem.attributes
+            val names = attrs.attributeNames
+            while (names.hasMoreElements()) {
+                val name = names.nextElement()
+                val value = attrs.getAttribute(name)
+                if (value is javax.swing.text.AttributeSet) {
+                    val title = value.getAttribute(javax.swing.text.html.HTML.Attribute.TITLE)
+                    if (title is String && title.isNotEmpty()) return title
+                }
+            }
+            val direct = attrs.getAttribute(javax.swing.text.html.HTML.Attribute.TITLE)
+            if (direct is String && direct.isNotEmpty()) return direct
+            elem = elem.parentElement
         }
+        return null
     }
 
     private fun colorToHex(color: Color): String =
