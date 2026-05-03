@@ -2,7 +2,14 @@ package de.fraunhofer.iem.safe.sast
 
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.PlatformDataKeys
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.ToolWindowManager
 import de.fraunhofer.iem.safe.sast.QodanaNodeExtractor.CWE_MAPPING
+import java.awt.Component
+import java.awt.Container
+import javax.swing.JTree
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.TreeModel
 import kotlin.collections.iterator
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
@@ -19,12 +26,31 @@ data class VulnerabilityInfo(
     val endColumn: Int? = null,
     val snippet: String? = null,
     val baselineState: String? = null,
-    val cwe: Cwe? = null
+    val cwe: Cwe? = null,
+    val traces: List<TaintTrace> = emptyList(),
+)
+
+/** A data-flow / taint trace. Multiple traces per finding are possible. */
+data class TaintTrace(
+    val description: String? = null,
+    val steps: List<TaintStep> = emptyList(),
+)
+
+/** A single hop in a [TaintTrace]. Maps to Qodana's `SarifTrace.Node` and to a SARIF threadFlow location. */
+data class TaintStep(
+    val filePath: String? = null,
+    val startLine: Int? = null,
+    val startColumn: Int? = null,
+    val endLine: Int? = null,
+    val endColumn: Int? = null,
+    val message: String? = null,
 )
 
 data class Cwe(
     val id: String? = null,
-    val name: String? = null
+    val name: String? = null,
+    /** Verbose, source-of-truth description (e.g., the full text from a Semgrep tag). For tooltips. */
+    val description: String? = null,
 ) {
     /** Best available display label, falls back to id then "Unknown" */
     fun displayName(): String = name ?: id ?: "Unknown"
@@ -77,8 +103,124 @@ object QodanaNodeExtractor {
         "InsecureCookie"           to Cwe(id = "CWE-614", name = "Sensitive Cookie Without 'Secure' Attribute"),
         // Header Injection
         "tainted-header"           to Cwe(id = "CWE-113", name = "HTTP Response Splitting"),
-        "HeaderInjection"          to Cwe(id = "CWE-113", name = "HTTP Response Splitting")
+        "HeaderInjection"          to Cwe(id = "CWE-113", name = "HTTP Response Splitting"),
+        // Aliases for Semgrep / project-specific rule IDs that need recovery via inspection-id mapping
+        // (e.g., when a cached entry has cwe=null and only the inspection id is available to re-resolve from).
+        "sql-injection"                   to Cwe(id = "CWE-89",  name = "SQL Injection"),
+        "sqli"                            to Cwe(id = "CWE-89",  name = "SQL Injection"),
+        "os-command"                      to Cwe(id = "CWE-78",  name = "OS Command Injection"),
+        "hardcoded-keystore"              to Cwe(id = "CWE-798", name = "Use of Hard-coded Credentials"),
+        "outdated-tls"                    to Cwe(id = "CWE-327", name = "Use of a Broken or Risky Cryptographic Algorithm"),
+        "cbc-padding"                     to Cwe(id = "CWE-327", name = "Use of a Broken or Risky Cryptographic Algorithm"),
+        "weak-random"                     to Cwe(id = "CWE-330", name = "Use of Insufficiently Random Values"),
+        "h2-console"                      to Cwe(id = "CWE-489", name = "Active Debug Code"),
+        "insecure-logging"                to Cwe(id = "CWE-532", name = "Insertion of Sensitive Information into Log File"),
+        "non-constant-time"               to Cwe(id = "CWE-208", name = "Observable Timing Discrepancy"),
+        "csrf-disabled"                   to Cwe(id = "CWE-352", name = "Cross-Site Request Forgery (CSRF)"),
+        "unrestricted-request-mapping"    to Cwe(id = "CWE-352", name = "Cross-Site Request Forgery (CSRF)"),
+        "cookie-missing"                  to Cwe(id = "CWE-614", name = "Sensitive Cookie Without 'Secure' Attribute"),
+        "cookie-secure-flag"              to Cwe(id = "CWE-614", name = "Sensitive Cookie Without 'Secure' Attribute"),
+        "no-static-initialization-vector" to Cwe(id = "CWE-329", name = "Generation of Predictable IV with CBC Mode"),
+        "tainted-file-path"               to Cwe(id = "CWE-22",  name = "Path Traversal"),
+        "missing-user-entrypoint"         to Cwe(id = "CWE-269", name = "Improper Privilege Management"),
     )
+
+    /**
+     * Walks every open tool window's component tree to find Qodana result trees and
+     * collects all SARIF problems they contain. Reuses the same reflection-based traversal
+     * as [extract] but starts from the tree root instead of a single selected node.
+     *
+     * Must be called on the EDT (Swing component access).
+     */
+    fun extractAll(project: Project): List<VulnerabilityInfo> {
+        val results = mutableListOf<VulnerabilityInfo>()
+        val seen = mutableSetOf<JTree>()
+        val toolWindowManager = ToolWindowManager.getInstance(project)
+        for (id in toolWindowManager.toolWindowIds) {
+            val tw = toolWindowManager.getToolWindow(id) ?: continue
+            for (content in tw.contentManager.contents) {
+                collectFromTrees(content.component, seen, results)
+            }
+        }
+        return results
+    }
+
+    private fun collectFromTrees(
+        component: Component?,
+        seen: MutableSet<JTree>,
+        results: MutableList<VulnerabilityInfo>,
+    ) {
+        if (component == null) return
+        if (component is JTree) {
+            if (seen.add(component) && treeHasQodanaShape(component)) {
+                walkTreeForProblems(component.model, component.model.root, results)
+            }
+            return
+        }
+        if (component is Container) {
+            for (child in component.components) {
+                collectFromTrees(child, seen, results)
+            }
+        }
+    }
+
+    private fun treeHasQodanaShape(tree: JTree): Boolean {
+        val root = tree.model.root ?: return false
+        return hasPrimaryDataDescendant(tree.model, root, depthLimit = 4)
+    }
+
+    private fun hasPrimaryDataDescendant(model: TreeModel, node: Any, depthLimit: Int): Boolean {
+        if (depthLimit <= 0) return false
+        if (unwrap(node).getField("primaryData") != null) return true
+        val count = model.getChildCount(node)
+        for (i in 0 until count) {
+            val child = model.getChild(node, i) ?: continue
+            if (hasPrimaryDataDescendant(model, child, depthLimit - 1)) return true
+        }
+        return false
+    }
+
+    private fun walkTreeForProblems(model: TreeModel, node: Any?, results: MutableList<VulnerabilityInfo>) {
+        if (node == null) return
+        val data = unwrap(node)
+        val primaryData = data.getField("primaryData")
+        if (primaryData != null) {
+            val sarifProblem = primaryData.getField("sarifProblem")
+            if (sarifProblem != null) {
+                results.add(parseSarifProblem(sarifProblem))
+                return
+            }
+            val modelTreeNode = data.getField("modelTreeNode")
+            if (modelTreeNode != null) {
+                val inspectionName = modelTreeNode.callMethod("getInspectionName") as? String
+                val children = modelTreeNode.getField("children")
+                val moduleNodes = children?.getField("moduleNodes") as? List<*>
+                if (moduleNodes != null) {
+                    val before = results.size
+                    for (moduleNode in moduleNodes) {
+                        val fadChildren = moduleNode?.getField("children")
+                            ?.getField("fileAndDirectoryNodeChildren") ?: continue
+                        collectProblems(fadChildren, results)
+                    }
+                    if (inspectionName != null) {
+                        for (i in before until results.size) {
+                            if (results[i].inspectionName == null) {
+                                results[i] = results[i].copy(inspectionName = inspectionName)
+                            }
+                        }
+                    }
+                    return
+                }
+            }
+        }
+        val count = model.getChildCount(node)
+        for (i in 0 until count) {
+            walkTreeForProblems(model, model.getChild(node, i), results)
+        }
+    }
+
+    private fun unwrap(node: Any): Any =
+        (node as? DefaultMutableTreeNode)?.userObject ?: node
 
     fun extract(e: AnActionEvent): List<VulnerabilityInfo> {
         val node = e.getData(PlatformDataKeys.SELECTED_ITEM) ?: return emptyList()
@@ -150,8 +292,33 @@ object QodanaNodeExtractor {
             endColumn     = sarif.getField("endColumn") as? Int,
             snippet       = sarif.getField("snippetText") as? String,
             baselineState = sarif.getField("baselineState") as? String,
-            cwe           = extractCwe(inspectionId, message, sarif)
+            cwe           = extractCwe(inspectionId, message, sarif),
+            traces        = extractTraces(sarif),
         )
+    }
+
+    /** Reflects [org.jetbrains.qodana.problem.SarifTrace] / `SarifTrace.Node` off the [sarif] object. */
+    private fun extractTraces(sarif: Any): List<TaintTrace> {
+        val rawTraces = sarif.getField("traces") as? Collection<*> ?: return emptyList()
+        return rawTraces.mapNotNull { trace ->
+            if (trace == null) return@mapNotNull null
+            val description = trace.getField("description") as? String
+            val rawNodes = trace.getField("nodes") as? Collection<*> ?: return@mapNotNull null
+            val steps = rawNodes.mapNotNull { node ->
+                if (node == null) return@mapNotNull null
+                val startLine = node.getField("startLine") as? Int
+                val startColumn = node.getField("startColumn") as? Int
+                val charLength = node.getField("charLength") as? Int
+                TaintStep(
+                    filePath = node.getField("relativePathToFile") as? String,
+                    startLine = startLine,
+                    startColumn = startColumn,
+                    endLine = startLine,
+                    endColumn = if (startColumn != null && charLength != null) startColumn + charLength else null,
+                )
+            }
+            if (steps.isEmpty()) null else TaintTrace(description, steps)
+        }
     }
 
     /**
@@ -204,17 +371,25 @@ object QodanaNodeExtractor {
 
      */
     private fun String.toCwe(): Cwe {
-        val fromMapping = CWE_MAPPING.values.firstOrNull { it.id == this }
-        return fromMapping ?: Cwe(id = this)
+        val match = Regex("CWE-\\d+").find(this) ?: return Cwe(id = this)
+        val id = match.value
+        val mappingName = CWE_MAPPING.values.firstOrNull { it.id == id }?.name
+        val tagDescription = this.substring(match.range.last + 1).trimStart(':', ' ').trim().takeIf { it.isNotEmpty() }
+        // Prefer the short curated name for display; keep the verbose tag text as a tooltip-only description.
+        val displayName = mappingName ?: tagDescription
+        val description = tagDescription?.takeIf { it != displayName }
+        return Cwe(id = id, name = displayName, description = description)
     }
 
-    private fun inspectionIdToCwe(inspectionId: String?): Cwe? {
+    fun inspectionIdToCwe(inspectionId: String?): Cwe? {
         if (inspectionId == null) return null
         for ((key, cwe) in CWE_MAPPING) {
             if (inspectionId.contains(key, ignoreCase = true)) return cwe
         }
         return null
     }
+
+    fun cweFromTagString(tag: String): Cwe = tag.toCwe()
 
     private fun Any.getField(name: String): Any? = try {
         this::class.memberProperties

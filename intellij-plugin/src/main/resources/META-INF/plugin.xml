@@ -24,6 +24,10 @@
                     anchor="bottom"
                     factoryClass="de.fraunhofer.iem.safe.ExplainerToolWindowFactory"
                     icon="/icons/toolWindowChat.svg"/>
+
+        <!-- Auto-restore the last imported SARIF file on project open -->
+        <postStartupActivity implementation="de.fraunhofer.iem.safe.SafeStartupActivity"/>
+
         <!-- Tools | SAFE settings page (provider, endpoint, model, key) -->
         <applicationConfigurable
             parentId="tools"
@@ -53,6 +57,12 @@
                     icon="/icons/toolWindowChat.svg">
                 <add-to-group group-id="ProblemsView.ToolWindow.TreePopup" anchor="last"/>
             </action>
+
+            <action id="Safe.ImportAllProblemsAction"
+                    class="de.fraunhofer.iem.safe.actions.ImportProblemsAction"
+                    text="Import All Problems..."
+                    description="Import all findings from the Qodana plugin's SARIF output or a SARIF file"
+                    icon="AllIcons.ToolbarDecorator.Import"/>
         </group>
 
     </actions>
