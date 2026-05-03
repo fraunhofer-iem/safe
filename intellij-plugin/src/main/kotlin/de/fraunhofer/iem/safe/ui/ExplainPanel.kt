@@ -760,20 +760,36 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             var first = true
             fun appendSection(title: String, body: String) {
                 if (body.isBlank()) return
-
-                first = false
-                appendLine("""
-                <div class="section">
-                    <p class="section-title">$title</p>
-                    <div class="section-body">${body.toHtmlParagraphs()}</div>
-                </div>
-            """.trimIndent())
+                appendLine(
+                    """<div class="section">
+                        <p class="section-title">$title</p>
+                        <div class="section-body">${Glossary.annotate(body.markdownToHtml())}</div>
+                    </div>""".trimIndent()
+                )
             }
 
-            appendSection("What", whatText)
-            appendSection("Why", whyText)
-            appendSection("Where", whereText)
-            appendSection("How to fix", howText)
+            if (entry.rawResponse.isBlank()) {
+                appendLine("""<p class="muted" style="font-style:italic; margin-top:14px;">No explanation yet. Right-click the finding and run <b>Explain Vulnerability</b> to generate one.</p>""")
+            } else {
+                if (tldrText.isNotBlank()) {
+                    appendLine("""<p class="tldr"><b>TL;DR:</b> ${Glossary.annotate(tldrText.escapeHtml().toInlineHtml())}</p>""")
+                }
+                appendSection("What", whatText)
+                appendSection("Why", whyText)
+                appendSection("Where", whereText)
+                appendSection("How to fix", howText)
+                if (deepDiveText.isNotBlank()) {
+                    val toggleLabel = if (deepDiveExpanded) "Hide deep dive" else "Show deep dive"
+                    appendLine("""<p class="toggle-row"><a href="#toggle-deepdive">$toggleLabel</a></p>""")
+                    if (deepDiveExpanded) {
+                        appendLine("""<div class="deep-dive">${Glossary.annotate(deepDiveText.markdownToHtml())}</div>""")
+                    }
+                }
+            }
+
+            appendLine("</body></html>")
+        }
+    }
 
             appendLine("""</div></body></html>""")
         }
