@@ -19,7 +19,8 @@ import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.PopupHandler
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBSplitter
+import com.intellij.ui.SearchTextField
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
@@ -59,6 +60,9 @@ data class ExplanationTreeEntry(
 
 data class CweNodeEntry(val cwe: Cwe, var count: Int = 0)
 data class DirectoryNodeEntry(val path: String)
+data class StatusGroupEntry(val explained: Boolean) {
+    val title: String get() = if (explained) "Explained" else "Not explained"
+}
 
 class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
@@ -117,10 +121,14 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private val detailPanel = JPanel(BorderLayout()).apply {
-        add(JBScrollPane(contentArea), BorderLayout.CENTER)
+        add(JBScrollPane(contentArea).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
     }
 
 
+
+    private val searchField = SearchTextField().apply {
+        textEditor.emptyText.text = "Filter findings (file, rule, CWE)"
+    }
 
     private val treePanel = JPanel(BorderLayout()).apply {
         add(searchField, BorderLayout.NORTH)
@@ -195,10 +203,43 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private val splitter = ThreeComponentsSplitter(false, true).apply {
         firstComponent = treePanel
-        secondComponent = detailPanel
+        innerComponent = detailPanel
+        firstSize = JBUI.scale(300)
+        lastSize = JBUI.scale(320)
+    }
+
+    private data class TraceNodeEntry(val title: String, val trace: TaintTrace)
+
+    private data class FindingMeta(val message: String?, val ruleName: String?, val severity: String?)
+
+    /**
+     * Cache-loaded entries carry only the LLM response. Look up the rest of the finding's
+     * metadata (original SAST message, rule name, severity) from the persisted snapshot.
+     *
+     * Declared before `init { }` so the lazy backing field is initialised in time for
+     * `loadCachedExplanations()`, which is called from the init block.
+     */
+    private val findingMetaMap: Map<Pair<String, String>, FindingMeta> by lazy {
+        FindingsSnapshotService.getInstance(project).loadFindings()
+            ?.mapNotNull { v ->
+                val id = v.inspectionId ?: return@mapNotNull null
+                val path = v.filePath ?: return@mapNotNull null
+                Pair(id, path) to FindingMeta(v.message, v.inspectionName ?: v.inspectionId, v.severity)
+            }
+            ?.toMap()
+            ?: emptyMap()
+    }
+
+    private fun findingMetaFor(inspectionId: String?, filePath: String?): FindingMeta? {
+        if (inspectionId == null || filePath == null) return null
+        return findingMetaMap[Pair(inspectionId, filePath)]
     }
 
     companion object {
+        val SAFE_TREE_ENTRY_KEY: DataKey<ExplanationTreeEntry> = DataKey.create("SafeTree.SelectedEntry")
+
+        private val UNMAPPED_CWE = Cwe(id = "(unmapped)", name = "Findings without a CWE")
+
         fun splitPath(filePath: String): Pair<String, String> {
             if (filePath.isBlank()) return Pair("", "")
             val lastSep = filePath.lastIndexOfAny(charArrayOf('/', '\\'))
@@ -225,11 +266,6 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         tree.addTreeSelectionListener {
             val selectedNode = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
                 ?: return@addTreeSelectionListener
-            val userObject = selectedNode.userObject
-            if (userObject is ExplanationTreeEntry) {
-                setHtmlContent(formatEntryAsHtml(userObject))
-            }
-        }
             when (val userObject = selectedNode.userObject) {
                 is ExplanationTreeEntry -> {
                     if (userObject != currentEntry) {
@@ -581,14 +617,52 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 
-    private fun findOrCreateCweNode(cwe: Cwe): DefaultMutableTreeNode {
+    /** "Explained" appears at the top, "Not explained" below. */
+    private fun findOrCreateStatusGroupNode(explained: Boolean): DefaultMutableTreeNode {
         for (i in 0 until rootNode.childCount) {
             val child = rootNode.getChildAt(i) as DefaultMutableTreeNode
-            val nodeEntry = child.userObject as? CweNodeEntry ?: continue
-            if (cwesMatch(nodeEntry.cwe, cwe)) return child
+            val entry = child.userObject as? StatusGroupEntry ?: continue
+            if (entry.explained == explained) return child
         }
-        return DefaultMutableTreeNode(CweNodeEntry(cwe, 0)).also { rootNode.add(it) }
+        val node = DefaultMutableTreeNode(StatusGroupEntry(explained))
+        val targetIndex = if (explained) 0 else rootNode.childCount
+        rootNode.insert(node, minOf(targetIndex, rootNode.childCount))
+        return node
     }
+
+    private fun findOrCreateCweNode(parent: DefaultMutableTreeNode, cwe: Cwe): DefaultMutableTreeNode {
+        val enriched = enrichCwe(cwe)
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i) as DefaultMutableTreeNode
+            val nodeEntry = child.userObject as? CweNodeEntry ?: continue
+            if (cwesMatch(nodeEntry.cwe, enriched)) {
+                val nameUpgrade = nodeEntry.cwe.name == null && enriched.name != null
+                val descUpgrade = nodeEntry.cwe.description == null && enriched.description != null
+                if (nameUpgrade || descUpgrade) {
+                    val merged = nodeEntry.cwe.copy(
+                        name = nodeEntry.cwe.name ?: enriched.name,
+                        description = nodeEntry.cwe.description ?: enriched.description,
+                    )
+                    child.userObject = nodeEntry.copy(cwe = merged)
+                    treeModel.nodeChanged(child)
+                }
+                return child
+            }
+        }
+        return DefaultMutableTreeNode(CweNodeEntry(enriched, 0)).also { parent.add(it) }
+    }
+
+    private fun enrichCwe(cwe: Cwe): Cwe {
+        if (cwe.name != null) return cwe
+        val id = cwe.id ?: return cwe
+        if (!id.startsWith("CWE-", ignoreCase = true)) return cwe
+        return QodanaNodeExtractor.cweFromTagString(id)
+    }
+
+    private fun resolveCweForEntry(entry: ExplanationTreeEntry): Cwe =
+        entry.cwe
+            ?: QodanaNodeExtractor.inspectionIdToCwe(entry.inspectionId)
+            ?: UNMAPPED_CWE
 
     private fun findOrCreateDirNode(
         cweNode: DefaultMutableTreeNode,
@@ -724,7 +798,8 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
      */
     fun showExplanation(inspectionId: String?, cwe: Cwe?, fileName: String?, response: String) {
         val id = inspectionId ?: "Unknown vulnerability"
-        val entry = ExplanationTreeEntry(id, cwe, fileName, "", response)
+        val severity = findingMetaFor(id, fileName)?.severity
+        val entry = ExplanationTreeEntry(id, cwe, fileName, "", response, severity = severity)
         val key = "$id::${fileName ?: ""}"
 
         // Persist only the id — the name can be re-supplied on next showExplanation call
@@ -1078,6 +1153,18 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             when (val obj = node.userObject) {
                 is String -> {
                     val total = (0 until node.childCount).sumOf { i ->
+                        val groupNode = node.getChildAt(i) as? DefaultMutableTreeNode
+                        (0 until (groupNode?.childCount ?: 0)).sumOf { j ->
+                            ((groupNode?.getChildAt(j) as? DefaultMutableTreeNode)
+                                ?.userObject as? CweNodeEntry)?.count ?: 0
+                        }
+                    }
+                    text = "<html><b>$obj</b> <font color='gray'>($total)</font></html>"
+                    font = font.deriveFont(Font.BOLD)
+                    icon = null
+                }
+                is StatusGroupEntry -> {
+                    val total = (0 until node.childCount).sumOf { i ->
                         ((node.getChildAt(i) as? DefaultMutableTreeNode)
                             ?.userObject as? CweNodeEntry)?.count ?: 0
                     }
@@ -1101,7 +1188,10 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 }
                 is ExplanationTreeEntry -> {
                     val (_, fileName) = splitPath(obj.filePath ?: "")
-                    text = fileName.ifBlank { obj.filePath ?: obj.inspectionId }
+                    val base = fileName.ifBlank { obj.filePath ?: obj.inspectionId }
+                    val lineSuffix = obj.startLine?.let { ":$it" } ?: ""
+                    val pendingSuffix = if (obj.rawResponse.isBlank()) " <font color='gray'>(not explained)</font>" else ""
+                    text = "<html>$base$lineSuffix$pendingSuffix</html>"
                     font = font.deriveFont(Font.PLAIN)
                     icon = severityIcon(obj.severity) ?: AllIcons.Nodes.Class
                 }
