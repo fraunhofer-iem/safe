@@ -1,6 +1,23 @@
 package de.fraunhofer.iem.safe.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataKey
+import com.intellij.openapi.actionSystem.DataSink
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.UiDataProvider
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.ui.ThreeComponentsSplitter
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.OnePixelSplitter
+import com.intellij.ui.PopupHandler
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBScrollPane
@@ -8,6 +25,17 @@ import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.fraunhofer.iem.safe.sast.Cwe
+import de.fraunhofer.iem.safe.sast.QodanaNodeExtractor
+import de.fraunhofer.iem.safe.sast.StepRole
+import de.fraunhofer.iem.safe.sast.StepRoleResolver
+import de.fraunhofer.iem.safe.sast.TaintStep
+import de.fraunhofer.iem.safe.sast.TaintTrace
+import de.fraunhofer.iem.safe.sast.VulnerabilityInfo
+import de.fraunhofer.iem.safe.ui.icons.CweBadge
+import de.fraunhofer.iem.safe.ui.icons.TaintFlowIcons
+import de.fraunhofer.iem.safe.util.CweCatalog
+import de.fraunhofer.iem.safe.util.FindingsSnapshotService
+import de.fraunhofer.iem.safe.util.Glossary
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
@@ -64,10 +92,77 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
 
     private val treePanel = JPanel(BorderLayout()).apply {
-        add(JBScrollPane(tree), BorderLayout.CENTER)
+        add(searchField, BorderLayout.NORTH)
+        add(JBScrollPane(tree).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
     }
 
-    private val splitter = JBSplitter(false, 0.3f).apply {
+    // Taint flows pane — only attached to the splitter when the selected finding has codeFlows.
+    private val flowsRoot = DefaultMutableTreeNode("Flows")
+    private val flowsModel = DefaultTreeModel(flowsRoot)
+    private val flowsTree = object : Tree(flowsModel) {
+        override fun getToolTipText(event: MouseEvent): String? {
+            val path = getPathForLocation(event.x, event.y) ?: return null
+            val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return null
+            return when (val obj = node.userObject) {
+                is TaintStep -> {
+                    val location = buildString {
+                        obj.filePath?.let { append(it) }
+                        obj.startLine?.let { append(":").append(it) }
+                    }
+                    location.takeIf { it.isNotBlank() }
+                }
+                is TraceNodeEntry -> obj.title
+                else -> null
+            }
+        }
+    }.apply {
+        isRootVisible = false
+        showsRootHandles = true
+        cellRenderer = FlowsTreeCellRenderer()
+        emptyText.text = "No taint flows for this finding"
+        ToolTipManager.sharedInstance().registerComponent(this)
+    }
+    /**
+     * Per-flow explanation pane below the flows tree. For now we surface the SAST tool's
+     * message for the selected trace/step; later this is the place where an LLM-generated
+     * explanation for the individual flow would render.
+     */
+    private val flowsDescriptionArea = object : JEditorPane() {
+        override fun getToolTipText(event: MouseEvent): String? = htmlTitleAt(this, event)
+    }.apply {
+        isEditable = false
+        editorKit = HTMLEditorKit()
+        background = UIUtil.getPanelBackground()
+        ToolTipManager.sharedInstance().registerComponent(this)
+        addHyperlinkListener { event ->
+            if (event.eventType != HyperlinkEvent.EventType.ACTIVATED) return@addHyperlinkListener
+            val href = event.description.orEmpty()
+            if (href.endsWith("toggle-step-original")) {
+                stepOriginalExpanded = !stepOriginalExpanded
+                handleFlowsSelection(flowsTree.lastSelectedPathComponent as? DefaultMutableTreeNode)
+                return@addHyperlinkListener
+            }
+            event.url?.let { BrowserUtil.browse(it) }
+        }
+    }
+
+    private val flowsDescriptionScroll = JBScrollPane(flowsDescriptionArea).apply { border = JBUI.Borders.empty() }
+
+    /**
+     * The bottom pane (`flowsDescriptionScroll`) is detached by default so the flows tree
+     * uses the whole flows column. We attach it on selection and detach again when the
+     * user picks a different finding.
+     */
+    private val flowsSplitter = OnePixelSplitter(true, 0.6f).apply {
+        firstComponent = JBScrollPane(flowsTree).apply { border = JBUI.Borders.empty() }
+        secondComponent = null
+    }
+
+    private val flowsPanel = JPanel(BorderLayout()).apply {
+        add(flowsSplitter, BorderLayout.CENTER)
+    }
+
+    private val splitter = ThreeComponentsSplitter(false, true).apply {
         firstComponent = treePanel
         secondComponent = detailPanel
     }
@@ -111,6 +206,224 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 applyFilter(searchField.text)
             }
         })
+    }
+
+    /**
+     * Substring-filters the visible tree against the search field. Matches across the
+     * inspection id, file path, CWE id/name, and the SAST message of each entry.
+     */
+    private fun applyFilter(text: String) {
+        val needle = text.trim().lowercase()
+        rootNode.removeAllChildren()
+        for (entry in explanations.values) {
+            if (needle.isEmpty() || entryMatches(entry, needle)) {
+                insertEntryIntoTree(entry)
+            }
+        }
+        treeModel.reload(rootNode)
+        updateEmptyState()
+        if (rootNode.childCount > 0) tree.expandRow(0)
+    }
+
+    private fun entryMatches(entry: ExplanationTreeEntry, needle: String): Boolean =
+        entry.inspectionId.lowercase().contains(needle) ||
+            entry.filePath?.lowercase()?.contains(needle) == true ||
+            entry.cwe?.id?.lowercase()?.contains(needle) == true ||
+            entry.cwe?.name?.lowercase()?.contains(needle) == true ||
+            entry.sastMessage?.lowercase()?.contains(needle) == true
+
+    private fun navigateToEntry(entry: ExplanationTreeEntry) {
+        val filePath = entry.filePath ?: return
+        val basePath = project.basePath ?: return
+        val virtualFile = LocalFileSystem.getInstance().findFileByPath("$basePath/$filePath") ?: return
+        val line = entry.startLine?.let { (it - 1).coerceAtLeast(0) } ?: 0
+        val column = 0
+        val descriptor = OpenFileDescriptor(project, virtualFile, line, column)
+        FileEditorManager.getInstance(project).openTextEditor(descriptor, false)
+    }
+
+    private fun navigateToStep(step: TaintStep) {
+        val filePath = step.filePath ?: return
+        val basePath = project.basePath ?: return
+        val virtualFile = LocalFileSystem.getInstance().findFileByPath("$basePath/$filePath") ?: return
+        val line = step.startLine?.let { (it - 1).coerceAtLeast(0) } ?: 0
+        val column = step.startColumn?.let { (it - 1).coerceAtLeast(0) } ?: 0
+        val descriptor = OpenFileDescriptor(project, virtualFile, line, column)
+        FileEditorManager.getInstance(project).openTextEditor(descriptor, false)
+    }
+
+    private fun lookupTraces(entry: ExplanationTreeEntry): List<TaintTrace> {
+        val path = entry.filePath ?: return emptyList()
+        val candidates = ExplanationStorageService.getInstance(project).getForFile(path)
+            .filter { it.vulnerability.inspectionId == entry.inspectionId }
+        // Cache-loaded entries don't carry line numbers (the cache only stores the LLM
+        // response), so fall back to the first inspection-id + file match in storage when
+        // we don't have line info to match against.
+        val match = if (entry.startLine != null) {
+            candidates.firstOrNull {
+                it.vulnerability.startLine == entry.startLine &&
+                    it.vulnerability.endLine == entry.endLine
+            } ?: candidates.firstOrNull()
+        } else {
+            candidates.firstOrNull()
+        }
+        return match?.vulnerability?.traces.orEmpty()
+    }
+
+    /**
+     * Populates the flows pane with the given traces. When the list is empty, detaches the
+     * pane from the splitter so it doesn't claim screen real estate.
+     */
+    private fun updateFlowsPane(traces: List<TaintTrace>) {
+        flowsRoot.removeAllChildren()
+        flowsDescriptionArea.text = ""
+        flowsSplitter.secondComponent = null
+        currentStepKey = null
+        stepOriginalExpanded = false
+        cachedStepExplanations = parseStepExplanations(currentEntry?.rawResponse.orEmpty())
+        for ((index, trace) in traces.withIndex()) {
+            val description = trace.description?.takeIf { it.isNotBlank() } ?: "Trace ${index + 1}"
+            val traceNode = DefaultMutableTreeNode(TraceNodeEntry(description, trace))
+            for (step in trace.steps) {
+                traceNode.add(DefaultMutableTreeNode(step))
+            }
+            flowsRoot.add(traceNode)
+        }
+        flowsModel.reload(flowsRoot)
+        if (traces.isEmpty()) {
+            splitter.lastComponent = null
+        } else {
+            splitter.lastComponent = flowsPanel
+            // Auto-expand the first trace for quick visibility.
+            if (flowsRoot.childCount > 0) flowsTree.expandRow(0)
+        }
+    }
+
+    /**
+     * Routes a flows-tree selection into the description pane:
+     *  - Trace header → renders the raw trace description.
+     *  - Step row    → renders the LLM-generated `**STEP T.S**` explanation when present,
+     *                  with a "Show original finding message" toggle that reveals the
+     *                  raw SAST message.
+     */
+    private fun handleFlowsSelection(node: DefaultMutableTreeNode?) {
+        when (val obj = node?.userObject) {
+            is TaintStep -> {
+                val key = stepKeyOf(node)
+                if (key != currentStepKey) {
+                    currentStepKey = key
+                    stepOriginalExpanded = false
+                }
+                val explanation = key?.let { cachedStepExplanations[it] }
+                renderFlowsDescriptionPane(
+                    explanation = explanation,
+                    originalMessage = obj.message,
+                    isStep = true,
+                )
+            }
+            is TraceNodeEntry -> {
+                currentStepKey = null
+                renderFlowsDescriptionPane(
+                    explanation = obj.title,
+                    originalMessage = null,
+                    isStep = false,
+                )
+            }
+            else -> {
+                currentStepKey = null
+                flowsSplitter.secondComponent = null
+                flowsDescriptionArea.text = ""
+            }
+        }
+    }
+
+    /** Computes (traceIndex, stepIndex) for a flows-tree leaf node, both 0-based. */
+    private fun stepKeyOf(stepNode: DefaultMutableTreeNode): Pair<Int, Int>? {
+        val traceNode = stepNode.parent as? DefaultMutableTreeNode ?: return null
+        val rootOfFlows = traceNode.parent as? DefaultMutableTreeNode ?: return null
+        val traceIdx = rootOfFlows.getIndex(traceNode)
+        val stepIdx = traceNode.getIndex(stepNode)
+        if (traceIdx < 0 || stepIdx < 0) return null
+        return Pair(traceIdx, stepIdx)
+    }
+
+    private fun renderFlowsDescriptionPane(explanation: String?, originalMessage: String?, isStep: Boolean) {
+        val showLLM = !explanation.isNullOrBlank()
+        val showOriginal = isStep && !originalMessage.isNullOrBlank()
+        if (!showLLM && !showOriginal) {
+            flowsSplitter.secondComponent = null
+            flowsDescriptionArea.text = ""
+            return
+        }
+        flowsSplitter.secondComponent = flowsDescriptionScroll
+        flowsDescriptionArea.text = renderFlowsHtml(explanation, originalMessage, isStep)
+        flowsDescriptionArea.caretPosition = 0
+    }
+
+    private fun renderFlowsHtml(explanation: String?, originalMessage: String?, isStep: Boolean): String {
+        val font = UIUtil.getLabelFont()
+        val fgHex = colorToHex(UIUtil.getLabelForeground())
+        val mutedHex = colorToHex(UIUtil.getContextHelpForeground())
+        val linkHex = colorToHex(JBUI.CurrentTheme.Link.Foreground.ENABLED)
+        return buildString {
+            appendLine(
+                """
+                |<html><head><style>
+                |    body { margin: 0; padding: 12px;
+                |        font-family: '${font.family}', sans-serif;
+                |        font-size: ${font.size}pt; color: $fgHex; line-height: 1.5; }
+                |    .toggle-row { margin: 8px 0 0 0; }
+                |    .original { color: $mutedHex; line-height: 1.5; margin: 6px 0 0 0; }
+                |    .muted { color: $mutedHex; }
+                |    a { color: $linkHex; text-decoration: none; }
+                |</style></head><body>
+                """.trimMargin()
+            )
+            if (isStep && !originalMessage.isNullOrBlank()) {
+                val toggleLabel = if (stepOriginalExpanded) "Hide original finding message" else "Show original finding message"
+                appendLine("""<p class="toggle-row" style="margin-top:0;"><a href="#toggle-step-original">$toggleLabel</a></p>""")
+                if (stepOriginalExpanded) {
+                    appendLine("""<div class="original">${originalMessage.escapeHtml().toInlineHtml()}</div>""")
+                }
+            }
+            val expl = explanation?.takeIf { it.isNotBlank() }
+            if (expl != null) {
+                appendLine("<p>${Glossary.annotate(expl.escapeHtml().toInlineHtml())}</p>")
+            } else if (isStep) {
+                appendLine("""<p class="muted" style="font-style:italic;">No explanation for this step yet.</p>""")
+            }
+            appendLine("</body></html>")
+        }
+    }
+
+    /**
+     * Extracts `**STEP T.S**: ...` blocks from a raw LLM response into a (trace,step) → text
+     * map (both indices 0-based). Each block ends at the next `**Marker**` sequence or end of
+     * response. Returns empty when the response has no STEP markers.
+     */
+    private fun parseStepExplanations(response: String): Map<Pair<Int, Int>, String> {
+        if (response.isBlank()) return emptyMap()
+        val stepPattern = Regex("""\*\*STEP\s+(\d+)\.(\d+)\*\*\s*:?\s*""", RegexOption.IGNORE_CASE)
+        val anyMarker = Regex("""\*\*[A-Za-z]""")
+        val matches = stepPattern.findAll(response).toList()
+        val out = mutableMapOf<Pair<Int, Int>, String>()
+        for (m in matches) {
+            val traceIdx = m.groupValues[1].toInt() - 1
+            val stepIdx = m.groupValues[2].toInt() - 1
+            if (traceIdx < 0 || stepIdx < 0) continue
+            val start = m.range.last + 1
+            val nextMarker = anyMarker.find(response, start)
+            val end = nextMarker?.range?.first ?: response.length
+            val text = response.substring(start, end).trim()
+            if (text.isNotEmpty()) out[Pair(traceIdx, stepIdx)] = text
+        }
+        return out
+    }
+
+    private fun installTreePopup() {
+        val action = ActionManager.getInstance().getAction("Safe.ExplainVulnerabilityAction") ?: return
+        val group = DefaultActionGroup().apply { add(action) }
+        PopupHandler.installPopupMenu(tree, group, "SafeTreePopup")
     }
 
     private fun loadStoredFindings() {
@@ -598,11 +911,83 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                     val (_, fileName) = splitPath(obj.filePath ?: "")
                     text = fileName.ifBlank { obj.filePath ?: obj.inspectionId }
                     font = font.deriveFont(Font.PLAIN)
-                    icon = AllIcons.Nodes.Class
+                    icon = severityIcon(obj.severity) ?: AllIcons.Nodes.Class
                 }
             }
 
             return component
         }
+
+        private fun severityIcon(severity: String?): javax.swing.Icon? = when (severity?.lowercase()) {
+            "error", "critical", "high" -> AllIcons.General.Error
+            "warning", "warn", "medium", "moderate" -> AllIcons.General.Warning
+            "note", "info", "informational", "low" -> AllIcons.General.Information
+            else -> null
+        }
+    }
+
+    /** Renders trace headers in bold and step rows as `<message>  ClassName:line` (location greyed). */
+    private class FlowsTreeCellRenderer : ColoredTreeCellRenderer() {
+        override fun customizeCellRenderer(
+            tree: JTree,
+            value: Any?,
+            selected: Boolean,
+            expanded: Boolean,
+            leaf: Boolean,
+            row: Int,
+            hasFocus: Boolean,
+        ) {
+            val node = value as? DefaultMutableTreeNode ?: return
+            when (val obj = node.userObject) {
+                is TraceNodeEntry -> {
+                    append(shortenFilePathsInText(obj.title), SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
+                }
+                is TaintStep -> {
+                    val parent = node.parent as? DefaultMutableTreeNode
+                    val total = parent?.childCount ?: 0
+                    val index = parent?.let { it.getIndex(node) } ?: 0
+                    icon = stepIcon(obj.message, index, total)
+                    val message = obj.message?.takeIf { it.isNotBlank() }
+                    if (message != null) {
+                        // Message text already carries the location (e.g. "Source: 'query' @ 'ClassName:193'"),
+                        // so the trailing grey suffix would duplicate it.
+                        append(shortenFilePathsInText(message), SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                    } else {
+                        val location = buildString {
+                            obj.filePath?.let { append(classNameOf(it)) }
+                            obj.startLine?.let { append(":").append(it) }
+                        }
+                        if (location.isNotEmpty()) {
+                            append(location, SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                        }
+                    }
+                }
+                else -> append(obj?.toString() ?: "", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+            }
+        }
+
+        /** Picks an icon for a step using [StepRoleResolver] so colors stay in sync with editor highlights. */
+        private fun stepIcon(message: String?, index: Int, total: Int): javax.swing.Icon? =
+            when (StepRoleResolver.resolve(message, index, total)) {
+                StepRole.SOURCE -> TaintFlowIcons.SOURCE
+                StepRole.SINK -> TaintFlowIcons.SINK
+                StepRole.CALL -> TaintFlowIcons.CALL
+                StepRole.PROPAGATOR -> TaintFlowIcons.PROPAGATOR
+                StepRole.SANITIZER -> TaintFlowIcons.SANITIZER
+                StepRole.UNKNOWN -> null
+            }
+
+        /** Last path segment with the file extension removed (e.g. `src/.../UserService.java` → `UserService`). */
+        private fun classNameOf(path: String): String {
+            val fileName = path.substringAfterLast('/').substringAfterLast('\\')
+            val dot = fileName.lastIndexOf('.')
+            return if (dot > 0) fileName.substring(0, dot) else fileName
+        }
+
+        /** Replaces any `path/to/File.ext` occurrence in [text] with the bare class name (`File`). */
+        private fun shortenFilePathsInText(text: String): String =
+            Regex("[A-Za-z0-9_./\\\\\\-]+\\.[A-Za-z][A-Za-z0-9]*").replace(text) { match ->
+                classNameOf(match.value)
+            }
     }
 }
