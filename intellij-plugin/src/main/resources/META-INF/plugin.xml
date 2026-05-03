@@ -24,6 +24,12 @@
                     anchor="bottom"
                     factoryClass="de.fraunhofer.iem.safe.ExplainerToolWindowFactory"
                     icon="/icons/toolWindowChat.svg"/>
+        <!-- Tools | SAFE settings page (provider, endpoint, model, key) -->
+        <applicationConfigurable
+            parentId="tools"
+            id="de.fraunhofer.iem.safe.settings"
+            displayName="SAFE"
+            instance="de.fraunhofer.iem.safe.settings.SafeSettingsConfigurable"/>
     </extensions>
 
     <!-- Project-level listener -->
