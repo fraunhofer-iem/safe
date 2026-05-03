@@ -226,9 +226,14 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val cache = ExplanationCacheService.getInstance(project)
         for (cached in cache.getAll()) {
 
-            // Cache stores cwe as a plain id string — wrap it into a Cwe object
-            val cwe = cached.cwe?.let { Cwe(id = it) }
-            val entry = ExplanationTreeEntry(cached.inspectionId, cwe, cached.fileName, "", cached.response)
+            // Cache stores cwe as a plain id string — re-enrich with the friendly name from CWE_MAPPING
+            val cwe = cached.cwe?.let { QodanaNodeExtractor.cweFromTagString(it) }
+            val meta = findingMetaFor(cached.inspectionId, cached.fileName)
+            val entry = ExplanationTreeEntry(
+                cached.inspectionId, cwe, cached.fileName, "", cached.response,
+                sastMessage = meta?.message,
+                severity = meta?.severity,
+            )
             val key = "${cached.inspectionId}::${cached.fileName ?: ""}"
             explanations[key] = entry
             insertEntryIntoTree(entry)
@@ -274,6 +279,50 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         selectEntryInTree(entry)
         setHtmlContent(formatEntryAsHtml(entry))
     }
+
+    /**
+     * Bulk-insert findings without explanations. The tree groups them by CWE → directory → file
+     * and the detail pane shows a placeholder until the user runs "Explain Vulnerability" on one.
+     * Returns the number of newly-inserted entries (duplicates are skipped).
+     */
+    fun addFindings(findings: List<VulnerabilityInfo>): Int {
+        val cache = ExplanationCacheService.getInstance(project)
+        var inserted = 0
+        for (vuln in findings) {
+            val id = vuln.inspectionId ?: "Unknown"
+            val cwe = vuln.cwe ?: Cwe(id = id)
+            val key = findingKey(id, vuln.filePath, vuln.startLine, vuln.endLine)
+            if (explanations.containsKey(key)) continue
+            // If this finding already has an explanation in the cache (loaded into the tree
+            // by loadCachedExplanations), don't add a separate placeholder entry for it.
+            if (vuln.inspectionId != null && vuln.filePath != null
+                && cache.find(vuln.inspectionId, vuln.filePath) != null) continue
+
+            val entry = ExplanationTreeEntry(
+                inspectionId = id,
+                cwe = cwe,
+                filePath = vuln.filePath,
+                htmlExplanation = "",
+                rawResponse = "",
+                startLine = vuln.startLine,
+                endLine = vuln.endLine,
+                sastMessage = vuln.message,
+                severity = vuln.severity,
+            )
+            explanations[key] = entry
+            insertEntryIntoTree(entry)
+            inserted++
+        }
+        if (inserted > 0) {
+            treeModel.reload(rootNode)
+            tree.expandRow(0)
+            updateEmptyState()
+        }
+        return inserted
+    }
+
+    private fun findingKey(inspectionId: String, filePath: String?, startLine: Int?, endLine: Int?): String =
+        "$inspectionId::${filePath ?: ""}::${startLine ?: 0}::${endLine ?: 0}"
 
     fun showError(message: String) {
         setHtmlContent(

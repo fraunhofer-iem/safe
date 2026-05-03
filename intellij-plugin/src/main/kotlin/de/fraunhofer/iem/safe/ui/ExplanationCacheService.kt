@@ -75,6 +75,8 @@ class ExplanationStorageService {
         return explanations[filePath] ?: emptyList()
     }
 
+    fun getAll(): List<ExplanationEntry> = explanations.values.flatten().toList()
+
     fun clear() {
         explanations.clear()
     }
