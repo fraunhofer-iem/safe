@@ -41,7 +41,10 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Font
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.event.HyperlinkEvent
 import javax.swing.text.html.HTMLEditorKit
 import javax.swing.text.html.StyleSheet
 import javax.swing.tree.DefaultMutableTreeNode
@@ -55,7 +58,13 @@ data class ExplanationTreeEntry(
     val cwe: Cwe?,
     val filePath: String?,
     val htmlExplanation: String,
-    val rawResponse: String
+    val rawResponse: String,
+    val startLine: Int? = null,
+    val endLine: Int? = null,
+    /** The original SAST tool's message — shown in the detail pane when no LLM explanation exists yet. */
+    val sastMessage: String? = null,
+    /** SARIF level (`error`, `warning`, `note`) or Qodana severity. Used for the severity badge. */
+    val severity: String? = null,
 )
 
 data class CweNodeEntry(val cwe: Cwe, var count: Int = 0)
@@ -96,7 +105,27 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
     private val explanations = mutableMapOf<String, ExplanationTreeEntry>()
 
-    private val contentArea = JEditorPane().apply {
+    /** The leaf currently rendered in the detail pane. Used to re-render on toggle. */
+    private var currentEntry: ExplanationTreeEntry? = null
+
+    /** Per-detail-pane toggle for the "original finding message" disclosure. Resets on selection change. */
+    private var sastMessageExpanded: Boolean = false
+
+    /** Toggle for the "Deep dive" disclosure in the leaf detail. Resets on selection change. */
+    private var deepDiveExpanded: Boolean = false
+
+    /** Per-step toggle for the flow-pane "original finding message" disclosure. Resets on selection change. */
+    private var stepOriginalExpanded: Boolean = false
+
+    /** (traceIndex, stepIndex) of the currently-highlighted step row in the flows tree, 0-based. */
+    private var currentStepKey: Pair<Int, Int>? = null
+
+    /** Parsed `**STEP T.S**` explanations from [currentEntry]'s LLM response, refreshed whenever a finding is loaded. */
+    private var cachedStepExplanations: Map<Pair<Int, Int>, String> = emptyMap()
+
+    private val contentArea = object : JEditorPane() {
+        override fun getToolTipText(event: MouseEvent): String? = htmlTitleAt(this, event)
+    }.apply {
         isEditable = false
         val kit = HTMLEditorKit()
         //kit.styleSheet = createStyleSheet()
@@ -603,10 +632,12 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     // ── Tree Structure Helpers ────────────────────────────────────────────────
 
     private fun insertEntryIntoTree(entry: ExplanationTreeEntry) {
-        val cwe = entry.cwe ?: Cwe(id = entry.inspectionId)
+        val cwe = resolveCweForEntry(entry)
         val (dirPath, _) = splitPath(entry.filePath ?: "")
+        val explained = entry.rawResponse.isNotBlank()
 
-        val cweNode = findOrCreateCweNode(cwe)
+        val groupNode = findOrCreateStatusGroupNode(explained)
+        val cweNode = findOrCreateCweNode(groupNode, cwe)
         (cweNode.userObject as CweNodeEntry).count++
 
         if (dirPath.isBlank()) {
@@ -883,12 +914,15 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private fun parseResponseSections(response: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
-        val pattern = Regex("""\*\*(WHAT|WHERE|WHY|HOW)\*\*\s*:?\s*""", RegexOption.IGNORE_CASE)
-        val matches = pattern.findAll(response).toList()
-        for (i in matches.indices) {
-            val key = matches[i].groupValues[1].lowercase()
-            val start = matches[i].range.last + 1
-            val end = if (i + 1 < matches.size) matches[i + 1].range.first else response.length
+        val pattern = Regex("""\*\*(TITLE|TLDR|WHAT|WHERE|WHY|HOW|DEEPDIVE)\*\*\s*:?\s*""", RegexOption.IGNORE_CASE)
+        // Bound each section at the next `**Marker**` of any kind so STEP blocks (or
+        // anything else the LLM adds after WHAT/WHERE/WHY/HOW) don't get absorbed into
+        // the last-matched section.
+        val anyMarker = Regex("""\*\*[A-Za-z]""")
+        for (match in pattern.findAll(response)) {
+            val key = match.groupValues[1].lowercase()
+            val start = match.range.last + 1
+            val end = anyMarker.find(response, start)?.range?.first ?: response.length
             result[key] = response.substring(start, end).trim()
         }
         return result
@@ -930,21 +964,89 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 
-    private fun formatEntryAsHtml(entry: ExplanationTreeEntry): String {
-        val sections = parseResponseSections(entry.rawResponse)
+    /** Shared `<html><head><style>` block — keeps both detail views visually consistent. */
+    private fun htmlHead(): String {
         val fgHex = colorToHex(UIUtil.getLabelForeground())
-        val panelHex = colorToHex(UIUtil.getPanelBackground())
         val mutedHex = colorToHex(UIUtil.getContextHelpForeground())
         val linkHex = colorToHex(JBUI.CurrentTheme.Link.Foreground.ENABLED)
-        val borderHex = colorToHex(adjustBrightness(UIUtil.getPanelBackground(), if (UIUtil.isUnderDarcula()) 30 else -25))
+        val codeBgHex = colorToHex(adjustBrightness(UIUtil.getPanelBackground(), if (UIUtil.isUnderDarcula()) 22 else -14))
+        val font = UIUtil.getLabelFont()
+        val fs = font.size
+        return """
+            <html><head><style>
+                body { margin: 0; padding: 14px 16px;
+                    font-family: '${font.family}', sans-serif;
+                    font-size: ${fs}pt; color: $fgHex; }
+                h1 { font-size: ${fs + 2}pt; font-weight: bold; margin: 0 0 2px 0; color: $fgHex; }
+                .cwe-tag { color: $mutedHex; font-size: ${fs - 1}pt; margin: 6px 0 0 0; }
+                .cwe-line { margin: 6px 0 0 0; }
+                .filepath { color: $mutedHex; font-size: ${fs - 1}pt; font-family: monospace;
+                    margin: 4px 0 0 0; }
+                .toggle-row { margin: 6px 0 0 0; }
+                .tldr { margin: 14px 0 0 0; line-height: 1.5; font-style: italic; color: $fgHex; }
+                .deep-dive { margin: 6px 0 0 0; line-height: 1.5; }
+                .sast-message { margin: 6px 0 0 0; color: $mutedHex; }
+                .sast-meta { font-weight: bold; color: $mutedHex; }
+                .sast-text { line-height: 1.5; margin: 4px 0 0 0; color: $mutedHex; }
+                .section { margin-top: 16px; }
+                .section-title { font-weight: bold; margin: 0 0 4px 0; color: $fgHex; }
+                .section-body { line-height: 1.5; margin: 0; color: $fgHex; }
+                .muted { color: $mutedHex; }
+                .glossary { color: $linkHex; text-decoration: underline; }
+                a { color: $linkHex; text-decoration: none; }
+                pre { background-color: $codeBgHex; padding: 6px 10px;
+                    margin: 6px 0; font-family: monospace; font-size: ${fs - 1}pt; }
+                code { font-family: monospace; }
+            </style></head><body>
+        """.trimIndent()
+    }
 
+    private fun String.toInlineHtml(): String =
+        replace("\n\n", "<br/><br/>").replace("\n", "<br/>")
+
+    /**
+     * Renders the subset of Markdown the LLM tends to emit:
+     *   - fenced code blocks (` ```lang … ``` `) → `<pre><code>…</code></pre>`
+     *   - inline code (`` `…` ``) → `<code>…</code>`
+     * HTML in the surrounding prose is escaped; newlines become `<br/>`. Code regions are
+     * extracted via placeholder tokens so they survive the bulk HTML-escape pass intact.
+     */
+    private fun String.markdownToHtml(): String {
+        val placeholders = mutableListOf<String>()
+        fun store(html: String): String {
+            val token = " PH${placeholders.size} "
+            placeholders.add(html)
+            return token
+        }
+        var s = this
+        s = Regex("```(?:[A-Za-z0-9_+#.\\-]*\\s*\\n)?([\\s\\S]*?)```").replace(s) { m ->
+            store("<pre><code>${m.groupValues[1].trimEnd().escapeHtml()}</code></pre>")
+        }
+        s = Regex("`([^`\\n]+)`").replace(s) { m ->
+            store("<code>${m.groupValues[1].escapeHtml()}</code>")
+        }
+        s = s.escapeHtml().replace("\n\n", "<br/><br/>").replace("\n", "<br/>")
+        placeholders.forEachIndexed { i, html ->
+            s = s.replace(" PH$i ", html)
+        }
+        return s
+    }
+
+    // Implementation moved earlier in the class so the backing lazy field is initialised
+    // before `init { loadCachedExplanations() }` runs and asks for it.
+
+
+    private fun formatEntryAsHtml(entry: ExplanationTreeEntry): String {
+        val sections = parseResponseSections(entry.rawResponse)
         val cweId = entry.cwe?.id ?: entry.inspectionId
         val cweName = entry.cwe?.name ?: ""
 
+        val tldrText = sections["tldr"] ?: ""
         val whatText = sections["what"] ?: ""
         val whyText = sections["why"] ?: ""
         val whereText = sections["where"] ?: ""
         val howText = sections["how"] ?: ""
+        val deepDiveText = sections["deepdive"] ?: ""
 
         return buildString {
             appendLine(htmlHead())
@@ -969,21 +1071,24 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 appendLine("""<h1>$cweLabel</h1>""")
             }
 
-            // Header
-            appendLine("""<div class="header">""")
-            appendLine("""<span class="id">$cweId</span>""")
-            if (cweName.isNotBlank()) {
-                appendLine("""<span class="name">$cweName</span>""")
+            // Expandable area with the original SAST tool message — collapsed by default,
+            // toggled via an internal hyperlink handled by the panel's HyperlinkListener.
+            val meta = findingMetaFor(entry.inspectionId, entry.filePath)
+            val sastMessage = (entry.sastMessage ?: meta?.message)?.takeIf { it.isNotBlank() }
+            val ruleName = (meta?.ruleName ?: entry.inspectionId).takeIf { it.isNotBlank() }
+            if (sastMessage != null) {
+                val toggleLabel = if (sastMessageExpanded) "Hide original finding message" else "Show original finding message"
+                appendLine("""<p class="toggle-row"><a href="#toggle-sast">$toggleLabel</a></p>""")
+                if (sastMessageExpanded) {
+                    appendLine("""<div class="sast-message">""")
+                    if (ruleName != null) {
+                        appendLine("""<div class="sast-meta">${ruleName.escapeHtml()}</div>""")
+                    }
+                    appendLine("""<div class="sast-text">${sastMessage.escapeHtml().toInlineHtml()}</div>""")
+                    appendLine("""</div>""")
+                }
             }
-            if (entry.filePath != null) {
-                appendLine("""<div class="filepath">${entry.filePath}</div>""")
-            }
-            appendLine("""</div>""")
 
-            // Content
-            appendLine("""<div class="content">""")
-
-            var first = true
             fun appendSection(title: String, body: String) {
                 if (body.isBlank()) return
                 appendLine(
@@ -1168,7 +1273,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                         ((node.getChildAt(i) as? DefaultMutableTreeNode)
                             ?.userObject as? CweNodeEntry)?.count ?: 0
                     }
-                    text = "<html><b>$obj</b> <font color='gray'>($total)</font></html>"
+                    text = "<html><b>${obj.title}</b> <font color='gray'>($total)</font></html>"
                     font = font.deriveFont(Font.BOLD)
                     icon = null
                 }
