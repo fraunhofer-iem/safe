@@ -113,6 +113,24 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         })
     }
 
+    private fun loadStoredFindings() {
+        val storage = ExplanationStorageService.getInstance(project)
+        val snapshotFindings = FindingsSnapshotService.getInstance(project).loadFindings().orEmpty()
+
+        // If the panel opens before SafeStartupActivity has populated storage, mirror the
+        // snapshot into storage now so VulnerabilityEditorListener can re-apply highlights
+        // when files open later in this session.
+        for (vuln in snapshotFindings) {
+            if (vuln.filePath == null || vuln.startLine == null) continue
+            val alreadyStored = storage.getForFile(vuln.filePath).any { it.vulnerability == vuln }
+            if (!alreadyStored) {
+                storage.store(ExplanationStorageService.ExplanationEntry(vuln, ""))
+            }
+        }
+
+        val findings = storage.getAll().map { it.vulnerability }
+        if (findings.isNotEmpty()) addFindings(findings)
+    }
         loadCachedExplanations()
     }
 
