@@ -103,6 +103,15 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 setHtmlContent(formatEntryAsHtml(userObject))
             }
         }
+        // Parse the 15 MB CWE catalog off the EDT so the first CWE-row click doesn't stall.
+        ApplicationManager.getApplication().executeOnPooledThread { CweCatalog.descriptions }
+
+        searchField.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) {
+                applyFilter(searchField.text)
+            }
+        })
+    }
 
         loadCachedExplanations()
     }
