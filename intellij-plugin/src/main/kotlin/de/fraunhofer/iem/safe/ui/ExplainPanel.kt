@@ -507,6 +507,34 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     private fun colorToHex(color: Color): String =
         String.format("#%02x%02x%02x", color.red, color.green, color.blue)
 
+    private fun buildSideToolbar(): JComponent {
+        val group = DefaultActionGroup().apply {
+            ActionManager.getInstance().getAction("Safe.ImportAllProblemsAction")?.let { add(it) }
+            addSeparator()
+            add(object : AnAction("Expand All", "Expand all nodes", AllIcons.Actions.Expandall) {
+                override fun actionPerformed(e: AnActionEvent) = expandAllNodes()
+            })
+            add(object : AnAction("Collapse All", "Collapse all nodes", AllIcons.Actions.Collapseall) {
+                override fun actionPerformed(e: AnActionEvent) = collapseAllNodes()
+            })
+            addSeparator()
+            add(object : AnAction(
+                "SAFE Settings",
+                "Configure the LLM provider, endpoint, model, and API key",
+                AllIcons.General.Settings,
+            ) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    com.intellij.openapi.options.ShowSettingsUtil.getInstance().showSettingsDialog(
+                        project,
+                        de.fraunhofer.iem.safe.settings.SafeSettingsConfigurable::class.java,
+                    )
+                }
+            })
+        }
+        val toolbar = ActionManager.getInstance().createActionToolbar("SafeToolWindowSideBar", group, false)
+        toolbar.targetComponent = this
+        return toolbar.component
+    }
 
     fun expandAllNodes() {
         var i = 0
