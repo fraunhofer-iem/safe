@@ -25,6 +25,8 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import de.fraunhofer.iem.safe.llm.SafeLlmSettings
+import de.fraunhofer.iem.safe.llm.SafeProviderChangeListener
 import de.fraunhofer.iem.safe.sast.Cwe
 import de.fraunhofer.iem.safe.sast.QodanaNodeExtractor
 import de.fraunhofer.iem.safe.sast.StepRole
@@ -352,6 +354,13 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         maybeRefreshFromQodana()
         restoreLastSelection()
         installTreePopup()
+
+        // Refresh the tree whenever the user switches LLM provider in settings — each
+        // provider has its own slice of the explanation cache, so the tree must rebuild.
+        ApplicationManager.getApplication().messageBus.connect(project)
+            .subscribe(SafeProviderChangeListener.TOPIC, SafeProviderChangeListener {
+                ApplicationManager.getApplication().invokeLater { reloadForActiveProvider() }
+            })
 
         // Parse the 15 MB CWE catalog off the EDT so the first CWE-row click doesn't stall.
         ApplicationManager.getApplication().executeOnPooledThread { CweCatalog.descriptions }
@@ -793,7 +802,8 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private fun loadCachedExplanations() {
         val cache = ExplanationCacheService.getInstance(project)
-        for (cached in cache.getAll()) {
+        val provider = activeProviderId()
+        for (cached in cache.getAllForProvider(provider)) {
 
             // Cache stores cwe as a plain id string — re-enrich with the friendly name from CWE_MAPPING
             val cwe = cached.cwe?.let { QodanaNodeExtractor.cweFromTagString(it) }
@@ -811,6 +821,29 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             treeModel.reload(rootNode)
             tree.expandRow(0)
         }
+        updateEmptyState()
+    }
+
+    private fun activeProviderId(): String = SafeLlmSettings.getInstance().providerKind.id
+
+    /**
+     * Tear down the tree, in-memory entry map, detail pane, and source-editor highlights,
+     * then rebuild from the persistent cache + storage using the now-active provider id.
+     * Called when the user changes providers in Settings.
+     */
+    private fun reloadForActiveProvider() {
+        rootNode.removeAllChildren()
+        explanations.clear()
+        currentEntry = null
+        cachedStepExplanations = emptyMap()
+        treeModel.reload(rootNode)
+        setHtmlContent("")
+        updateFlowsPane(emptyList())
+        VulnerabilityHighlightService.getInstance(project).clearTraceHighlights()
+
+        loadCachedExplanations()
+        loadStoredFindings()
+        restoreLastSelection()
         updateEmptyState()
     }
 
@@ -833,8 +866,11 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val entry = ExplanationTreeEntry(id, cwe, fileName, "", response, severity = severity)
         val key = "$id::${fileName ?: ""}"
 
-        // Persist only the id — the name can be re-supplied on next showExplanation call
-        ExplanationCacheService.getInstance(project).store(id, cwe?.id, fileName, response)
+        // Persist only the id — the name can be re-supplied on next showExplanation call.
+        // The active provider id scopes the entry so switching providers does not overwrite
+        // each other's explanations for the same finding.
+        ExplanationCacheService.getInstance(project)
+            .store(id, cwe?.id, fileName, response, activeProviderId())
 
         if (!explanations.containsKey(key)) {
             explanations[key] = entry
@@ -865,8 +901,10 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             if (explanations.containsKey(key)) continue
             // If this finding already has an explanation in the cache (loaded into the tree
             // by loadCachedExplanations), don't add a separate placeholder entry for it.
+            // Scoped to the active provider — the same finding can legitimately appear as
+            // "Not explained" under provider B while having an entry under provider A.
             if (vuln.inspectionId != null && vuln.filePath != null
-                && cache.find(vuln.inspectionId, vuln.filePath) != null) continue
+                && cache.find(vuln.inspectionId, vuln.filePath, activeProviderId()) != null) continue
 
             val entry = ExplanationTreeEntry(
                 inspectionId = id,
@@ -1203,6 +1241,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 override fun actionPerformed(e: AnActionEvent) = collapseAllNodes()
             })
             addSeparator()
+            add(de.fraunhofer.iem.safe.actions.SafeProviderComboAction())
             add(object : AnAction(
                 "SAFE Settings",
                 "Configure the LLM provider, endpoint, model, and API key",
