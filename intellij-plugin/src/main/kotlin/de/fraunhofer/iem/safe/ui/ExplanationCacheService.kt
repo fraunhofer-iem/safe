@@ -17,7 +17,13 @@ class ExplanationCacheService : PersistentStateComponent<ExplanationCacheService
         var inspectionId: String = "",
         var cwe: String? = null,
         var fileName: String? = null,
-        var response: String = ""
+        var response: String = "",
+        /**
+         * Id of the [ProviderKind] that produced [response]. Empty string means the entry
+         * predates provider-scoped caching — those are treated as belonging to the original
+         * default ([ProviderKind.AZURE_OPENAI]) so existing users don't lose their cache.
+         */
+        var provider: String = ""
     )
 
     class CacheState {
@@ -32,21 +38,26 @@ class ExplanationCacheService : PersistentStateComponent<ExplanationCacheService
         myCacheState = state
     }
 
-    fun getAll(): List<CachedExplanation> = myCacheState.entries.toList()
+    fun getAllForProvider(provider: String): List<CachedExplanation> =
+        myCacheState.entries.filter { it.provider == provider }
 
-    fun find(inspectionId: String, fileName: String?): CachedExplanation? {
+    fun find(inspectionId: String, fileName: String?, provider: String): CachedExplanation? {
         return myCacheState.entries.firstOrNull {
-            it.inspectionId == inspectionId && it.fileName == fileName
+            it.inspectionId == inspectionId && it.fileName == fileName && it.provider == provider
         }
     }
 
-    fun store(inspectionId: String, cwe: String?, fileName: String?, response: String) {
-        val existing = find(inspectionId, fileName)
+    fun store(inspectionId: String, cwe: String?, fileName: String?, response: String, provider: String) {
+        // Match strictly on provider — we want one entry per (id, file, provider) tuple,
+        // so re-explaining under SAFE Agent doesn't overwrite the Azure entry, etc.
+        val existing = myCacheState.entries.firstOrNull {
+            it.inspectionId == inspectionId && it.fileName == fileName && it.provider == provider
+        }
         if (existing != null) {
             existing.response = response
             existing.cwe = cwe
         } else {
-            myCacheState.entries.add(CachedExplanation(inspectionId, cwe, fileName, response))
+            myCacheState.entries.add(CachedExplanation(inspectionId, cwe, fileName, response, provider))
         }
     }
 
