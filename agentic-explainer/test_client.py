@@ -5,20 +5,33 @@ import sys
 def test_explain_endpoint():
     url = "http://127.0.0.1:8800/explain"
 
-    # Same payload as your Burp request
+    # Updated payload mapping to the new ExplainerRequest BaseModel
     payload = {
         "rootpath": "/home/schiggy/IdeaProjects/fraunhofer/safe",
         "filepath": "agentic-explainer/fastapi_main.py",
-        "issue_context": "Potential SQL Injection vulnerability detected in user input processing.",
+        "message": "Potential SQL Injection vulnerability detected in user input processing.",
         "cwe": "CWE-89",
         "rule_id": "java-sqli-01",
-        "rule_description": "Improper neutralization of special elements used in an SQL Command.",
+        "severity": "CRITICAL",
+        "startLine": 42,
+        "snippet": "user_input = request.payload.get('user_id')\ndb.execute(f'SELECT * FROM users WHERE id = {user_input}')",
+        # Updated to "traces" to match the Kotlin data-flow format if applicable,
+        # or leave as taint_flow depending on what your model expects right now
         "taint_flow": [
             {
-                "file": "agentic-explainer/fastapi_main.py",
-                "line": 42,
-                "method": "explain_vuln",
-                "description": "User input read from request payload"
+                "description": "User input flow",
+                "steps": [
+                    {
+                        "filePath": "agentic-explainer/fastapi_main.py",
+                        "startLine": 41,
+                        "message": "User input read from request payload"
+                    },
+                    {
+                        "filePath": "agentic-explainer/fastapi_main.py",
+                        "startLine": 42,
+                        "message": "Unsanitized input used in SQL query"
+                    }
+                ]
             }
         ]
     }
@@ -30,6 +43,9 @@ def test_explain_endpoint():
         # stream=True is critical for reading the response as it arrives
         with requests.post(url, json=payload, stream=True, headers={"Accept": "text/event-stream"}) as response:
             response.raise_for_status()
+
+            # To store the accumulated JSON string just in case you want to parse it at the end
+            accumulated_json = ""
 
             # Read the stream line by line
             for line in response.iter_lines():
@@ -56,6 +72,8 @@ def test_explain_endpoint():
                                 # Unescape newlines that were safely packed for JSON
                                 content = content.replace("\\n", "\n")
 
+                                accumulated_json += content
+
                                 # Print to console without adding a newline, and flush immediately
                                 sys.stdout.write(content)
                                 sys.stdout.flush()
@@ -63,6 +81,14 @@ def test_explain_endpoint():
                             elif event_type == "done":
                                 print("\n\n" + "-" * 50)
                                 print("✅ Agent finished processing.")
+
+                                # Optional: If you want to see the final assembled JSON parsed natively:
+                                # print("\n[Parsed Final Response Object]")
+                                # try:
+                                #     final_obj = json.loads(accumulated_json)
+                                #     print(json.dumps(final_obj, indent=2))
+                                # except Exception as parse_e:
+                                #     print("Could not parse final accumulated JSON:", parse_e)
 
                             elif event_type == "error":
                                 print(f"\n\n❌ ERROR: {event.get('message')}")
