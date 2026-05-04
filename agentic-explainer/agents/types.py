@@ -6,20 +6,24 @@ class ExplainerRequest(BaseModel):
     filepath: str = Field(..., description="The path to the vulnerable file")
     issue_context: str = Field(..., description="The SAST finding message/context")
 
-    # These fields are optional with default values
     cwe: str = "Unknown CWE"
     rule_id: str = "No rule_id provided"
     rule_description: str = "No rule description provided"
+    severity: Optional[str] = None
+    start_line: Optional[int] = None
+    end_line: Optional[int] = None
+    snippet: Optional[str] = None
     taint_flow: List[Dict[str, Any]] = []
 
-
-class ExplainerResponse(BaseModel):
-    """Explainer Response"""
-    what: str = Field(description="WHAT: What is this vulnerability? Describe the type and nature of the security issue.")
-    where: str = Field(description="WHERE: Where does this vulnerability occur? Reference the file, line, and code context if available.")
-    why: str = Field(description="WHY: Why is this dangerous? Explain the potential impact or risk.")
-    how: str = Field(description="HOW: How can this be fixed? Provide a concise remediation approach.")
-
-
-
-
+    # ── Optional backend LLM override ─────────────────────────────────────────
+    # When the plugin caller sets these, we instantiate a fresh LangChain LLM
+    # for this request instead of using the service's env-var defaults. Lets the
+    # user pick the model/key from the SAFE plugin's Settings UI.
+    llm_provider: Optional[str] = Field(
+        default=None,
+        description="One of 'azure-openai', 'openai', 'anthropic', 'ollama'. None ⇒ use server default.",
+    )
+    llm_endpoint: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_temperature: Optional[float] = None
