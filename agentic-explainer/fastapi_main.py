@@ -3,13 +3,10 @@ import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-# 1. Import your external types and agent
 from agents.types import ExplainerRequest
 from agents.explainer_agent import setup_explainer_agent
-# from createCtags import build_index
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langfuse.langchain import CallbackHandler
-from langchain_openai import AzureChatOpenAI
 from dotenv import load_dotenv
 
 from createCtags import build_index
@@ -21,13 +18,107 @@ load_dotenv()
 
 langfuse_handler = CallbackHandler()
 
-LLM = AzureChatOpenAI(
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-    streaming=True
-)
+
+def _default_llm():
+    """Env-var-backed fallback used when the request body has no `llm_provider` field."""
+    return AzureChatOpenAI(
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+        streaming=True,
+    )
+
+
+DEFAULT_LLM = _default_llm()
+
+
+def build_llm_from_payload(payload: ExplainerRequest):
+    """
+    If the request specifies `llm_provider` (and the credentials needed for it), build a
+    fresh LangChain LLM for that request. Otherwise fall back to [DEFAULT_LLM].
+
+    Anthropic and Ollama require optional packages (`langchain-anthropic`,
+    `langchain-ollama`). If those aren't installed but the caller asks for them, we raise
+    an HTTPException with a clear message so the plugin can surface it.
+    """
+    provider = (payload.llm_provider or "").strip().lower()
+    if not provider:
+        return DEFAULT_LLM
+
+    temperature = payload.llm_temperature
+    model = payload.llm_model or ""
+    api_key = payload.llm_api_key or ""
+    endpoint = payload.llm_endpoint or ""
+
+    if provider == "azure-openai":
+        if not (endpoint and model and api_key):
+            raise HTTPException(
+                status_code=400,
+                detail="Azure OpenAI backend requires llm_endpoint, llm_model, and llm_api_key.",
+            )
+        return AzureChatOpenAI(
+            azure_endpoint=endpoint,
+            api_key=api_key,
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
+            deployment_name=model,
+            temperature=temperature if temperature is not None else 0.0,
+            streaming=True,
+        )
+
+    if provider == "openai":
+        if not (model and api_key):
+            raise HTTPException(
+                status_code=400,
+                detail="OpenAI backend requires llm_model and llm_api_key.",
+            )
+        kwargs = dict(model=model, api_key=api_key, streaming=True)
+        if endpoint:
+            kwargs["base_url"] = endpoint
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return ChatOpenAI(**kwargs)
+
+    if provider == "anthropic":
+        try:
+            from langchain_anthropic import ChatAnthropic  # type: ignore
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="Anthropic backend requested but `langchain-anthropic` is not installed in the service.",
+            )
+        if not (model and api_key):
+            raise HTTPException(
+                status_code=400,
+                detail="Anthropic backend requires llm_model and llm_api_key.",
+            )
+        kwargs = dict(model=model, api_key=api_key, streaming=True)
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return ChatAnthropic(**kwargs)
+
+    if provider == "ollama":
+        try:
+            from langchain_ollama import ChatOllama  # type: ignore
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="Ollama backend requested but `langchain-ollama` is not installed in the service.",
+            )
+        if not model:
+            raise HTTPException(
+                status_code=400,
+                detail="Ollama backend requires llm_model.",
+            )
+        kwargs = dict(model=model)
+        if endpoint:
+            kwargs["base_url"] = endpoint
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return ChatOllama(**kwargs)
+
+    raise HTTPException(status_code=400, detail=f"Unknown llm_provider: {provider!r}")
+
 
 @app.get("/health")
 async def health_check():
@@ -41,13 +132,13 @@ async def explain_vuln(request: Request, payload: ExplainerRequest):
     request.app.state.current_root_path = payload.rootpath
     build_index(request.app.state.current_root_path, ctags_path)
 
-    # Enable streaming on the LLM
-    # 2. Get the graph and state from your agent file (NO prompts here)
+    llm = build_llm_from_payload(payload)
+
     agent_graph, initial_state = setup_explainer_agent(
         ctags_path=ctags_path,
-        llm=LLM,
+        llm=llm,
         payload=payload,
-        project_root=payload.rootpath
+        project_root=payload.rootpath,
     )
 
     agent_config = {
@@ -57,8 +148,9 @@ async def explain_vuln(request: Request, payload: ExplainerRequest):
         "metadata": {
             "agent": "explainer-agent",
             "ctags_path": ctags_path,
-            "project_root": payload.rootpath
-        }
+            "project_root": payload.rootpath,
+            "llm_provider": payload.llm_provider or "service-default",
+        },
     }
 
     async def event_streamer():
@@ -70,14 +162,13 @@ async def explain_vuln(request: Request, payload: ExplainerRequest):
                     data = json.dumps({
                         "type": "tool_start",
                         "tool": event["name"],
-                        "input": event["data"].get("input")
+                        "input": event["data"].get("input"),
                     })
                     yield f"data: {data}\n\n"
 
                 elif kind == "on_chat_model_stream":
                     chunk = event["data"]["chunk"]
 
-                    # Structured output usually streams inside tool_call_chunks
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
                         for tc_chunk in chunk.tool_call_chunks:
                             if "args" in tc_chunk and tc_chunk["args"]:
@@ -103,8 +194,8 @@ async def explain_vuln(request: Request, payload: ExplainerRequest):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
+            "X-Accel-Buffering": "no",
+        },
     )
 
 if __name__ == "__main__":
