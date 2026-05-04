@@ -1060,9 +1060,9 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 val shortName = entry.cwe?.id?.let {
                     QodanaNodeExtractor.cweFromTagString(it).name?.takeIf { n -> n.isNotBlank() }
                 }
-                val badgeUrl = CweBadge.urlFor(entry.cwe?.id, shortName)
-                if (badgeUrl != null) {
-                    appendLine("""<p class="cwe-line"><img src="$badgeUrl"/></p>""")
+                val badgeHtml = CweBadge.htmlFor(entry.cwe?.id, shortName)
+                if (badgeHtml != null) {
+                    appendLine("""<p class="cwe-line">$badgeHtml</p>""")
                 } else if (cweLabel.isNotBlank()) {
                     appendLine("""<p class="cwe-tag">$cweLabel</p>""")
                 }
