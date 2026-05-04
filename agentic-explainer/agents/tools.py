@@ -32,6 +32,9 @@ def resolve_safe_path(requested_path: str, project_root_raw: str) -> Path:
     if not candidate.is_relative_to(root):
         raise PermissionError(f"Access Denied: Path '{requested_path}' is outside the project root.")
 
+    if candidate.suffix.lower() == '.sarif':
+        raise PermissionError(f"Access Denied: You are not allowed to interact with .sarif files.")
+
     return candidate
 
 

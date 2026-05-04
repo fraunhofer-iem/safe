@@ -151,6 +151,7 @@ async def explain_vuln(request: Request, payload: ExplainerRequest):
             "project_root": payload.rootpath,
             "llm_provider": payload.llm_provider or "service-default",
         },
+        "recursion_limit": 100
     }
 
     async def event_streamer():
