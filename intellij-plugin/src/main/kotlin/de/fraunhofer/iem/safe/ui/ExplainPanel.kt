@@ -1090,6 +1090,8 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 .toggle-row { margin: 6px 0 0 0; }
                 .tldr { margin: 14px 0 0 0; line-height: 1.5; font-style: italic; color: $fgHex; }
                 .deep-dive { margin: 6px 0 0 0; line-height: 1.5; }
+                h4 { font-weight: bold; font-size: ${fs}pt; color: $fgHex;
+                    margin: 12px 0 2px 0; padding: 0; border-bottom: 0; }
                 .sast-message { margin: 6px 0 0 0; color: $mutedHex; }
                 .sast-meta { font-weight: bold; color: $mutedHex; }
                 .sast-text { line-height: 1.5; margin: 4px 0 0 0; color: $mutedHex; }
@@ -1129,6 +1131,13 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
         s = Regex("`([^`\\n]+)`").replace(s) { m ->
             store("<code>${m.groupValues[1].escapeHtml()}</code>")
+        }
+        // ATX-style sub-headings (`### Heading`) → <h4>. Used inside the deep dive to
+        // break the long write-up into Mechanism / Why naive fixes fail / Edge cases /
+        // References. Captured as placeholders BEFORE escapeHtml so the `#` characters
+        // don't get HTML-escaped and the heading text doesn't pick up stray `<br/>`.
+        s = Regex("(?m)^[ \\t]*###[ \\t]+(.+?)[ \\t]*$").replace(s) { m ->
+            store("<h4>${m.groupValues[1].escapeHtml()}</h4>")
         }
         s = s.escapeHtml().replace("\n\n", "<br/><br/>").replace("\n", "<br/>")
         placeholders.forEachIndexed { i, html ->
