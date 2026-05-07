@@ -369,10 +369,21 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
         // Refresh the tree whenever the user switches LLM provider in settings — each
         // provider has its own slice of the explanation cache, so the tree must rebuild.
-        ApplicationManager.getApplication().messageBus.connect(project)
-            .subscribe(SafeProviderChangeListener.TOPIC, SafeProviderChangeListener {
-                ApplicationManager.getApplication().invokeLater { reloadForActiveProvider() }
-            })
+        val bus = ApplicationManager.getApplication().messageBus.connect(project)
+        bus.subscribe(SafeProviderChangeListener.TOPIC, SafeProviderChangeListener {
+            ApplicationManager.getApplication().invokeLater { reloadForActiveProvider() }
+        })
+
+        // The detail pane is HTML with colors and font sizes baked into the document at
+        // render time, so theme/font changes don't propagate automatically. Re-render
+        // when the LaF flips (Darcula ↔ light) or when the user adjusts the IDE-wide
+        // font/scaling so the panel stays in sync.
+        bus.subscribe(com.intellij.ide.ui.LafManagerListener.TOPIC, com.intellij.ide.ui.LafManagerListener {
+            ApplicationManager.getApplication().invokeLater { reapplyAppearance() }
+        })
+        bus.subscribe(com.intellij.ide.ui.UISettingsListener.TOPIC, com.intellij.ide.ui.UISettingsListener {
+            ApplicationManager.getApplication().invokeLater { reapplyAppearance() }
+        })
 
         // Parse the 15 MB CWE catalog off the EDT so the first CWE-row click doesn't stall.
         ApplicationManager.getApplication().executeOnPooledThread { CweCatalog.descriptions }
