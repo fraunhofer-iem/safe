@@ -1401,8 +1401,9 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                     val (_, fileName) = splitPath(obj.filePath ?: "")
                     val base = fileName.ifBlank { obj.filePath ?: obj.inspectionId }
                     val lineSuffix = obj.startLine?.let { ":$it" } ?: ""
-                    val pendingSuffix = if (obj.rawResponse.isBlank()) " <font color='gray'>(not explained)</font>" else ""
-                    text = "<html>$base$lineSuffix$pendingSuffix</html>"
+                    // The "Explained" / "Not explained" status group above the row already
+                    // communicates whether an explanation exists, so don't repeat it here.
+                    text = "<html>$base$lineSuffix</html>"
                     font = font.deriveFont(Font.PLAIN)
                     icon = severityIcon(obj.severity) ?: AllIcons.Nodes.Class
                 }
