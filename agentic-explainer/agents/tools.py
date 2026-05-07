@@ -377,3 +377,34 @@ def find_files(name_pattern: str = "", path: str = ".", runtime: ToolRuntime = N
         return str(e)
     except Exception as e:
         return f"Error finding files ({type(e).__name__}): {e}"
+
+@tool
+def lookup_sast_rule(rule_id: str, runtime: ToolRuntime = None) -> str:
+    """
+    Look up the SAST rule definition for `rule_id` in the indexed rules
+    directory (configured by `SAST_RULES_PATH` on the service). Returns the
+    rule's content as YAML — id, message, patterns, severity, metadata
+    (CWE / OWASP). Use this whenever the finding has a rule_id so your
+    explanation reflects what the rule actually checks rather than guessing
+    from the id.
+
+    Falls back to a tail-segment match for long-dotted ids
+    (`java.spring.security.spring-sqli-deepsemgrep.spring-sqli-deepsemgrep`
+    finds a Semgrep rule whose id is just `spring-sqli-deepsemgrep`).
+    """
+    import yaml
+
+    from agents.rules import find_rule, get_rules_root, index_size
+
+    if not get_rules_root():
+        return (
+            "Error: SAST rules directory is not configured. "
+            "Set SAST_RULES_PATH on the service to a directory of Semgrep YAMLs."
+        )
+    rule = find_rule(rule_id)
+    if rule is None:
+        return (
+            f"Error: rule {rule_id!r} not found in the loaded SAST rules "
+            f"({index_size()} rules indexed)."
+        )
+    return yaml.safe_dump(rule, sort_keys=False, default_flow_style=False)
