@@ -241,7 +241,13 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private data class TraceNodeEntry(val title: String, val trace: TaintTrace)
 
-    private data class FindingMeta(val message: String?, val ruleName: String?, val severity: String?)
+    private data class FindingMeta(
+        val message: String?,
+        val ruleName: String?,
+        val severity: String?,
+        val startLine: Int?,
+        val endLine: Int?,
+    )
 
     /**
      * Cache-loaded entries carry only the LLM response. Look up the rest of the finding's
@@ -255,7 +261,13 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             ?.mapNotNull { v ->
                 val id = v.inspectionId ?: return@mapNotNull null
                 val path = v.filePath ?: return@mapNotNull null
-                Pair(id, path) to FindingMeta(v.message, v.inspectionName ?: v.inspectionId, v.severity)
+                Pair(id, path) to FindingMeta(
+                    message = v.message,
+                    ruleName = v.inspectionName ?: v.inspectionId,
+                    severity = v.severity,
+                    startLine = v.startLine,
+                    endLine = v.endLine,
+                )
             }
             ?.toMap()
             ?: emptyMap()
@@ -310,7 +322,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                     VulnerabilityHighlightService.getInstance(project)
                         .applyTraceHighlights(project, traces, cachedStepExplanations)
                     FindingsSnapshotService.getInstance(project).lastSelectedKey =
-                        "${userObject.inspectionId}::${userObject.filePath ?: ""}"
+                        findingKey(userObject.inspectionId, userObject.filePath, userObject.startLine, userObject.endLine)
                 }
                 is CweNodeEntry -> {
                     currentEntry = null
@@ -715,7 +727,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         return DefaultMutableTreeNode(DirectoryNodeEntry(dirPath)).also { cweNode.add(it) }
     }
 
-    private fun findFileNode(key: String): DefaultMutableTreeNode? {
+    private fun findFileNode(matcher: (ExplanationTreeEntry) -> Boolean): DefaultMutableTreeNode? {
         for (g in 0 until rootNode.childCount) {
             val groupNode = rootNode.getChildAt(g) as DefaultMutableTreeNode
             if (groupNode.userObject !is StatusGroupEntry) continue
@@ -726,7 +738,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                     for (k in 0 until dirNode.childCount) {
                         val fileNode = dirNode.getChildAt(k) as DefaultMutableTreeNode
                         val obj = fileNode.userObject as? ExplanationTreeEntry ?: continue
-                        if ("${obj.inspectionId}::${obj.filePath ?: ""}" == key) return fileNode
+                        if (matcher(obj)) return fileNode
                     }
                 }
             }
@@ -734,9 +746,14 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         return null
     }
 
+    /** Strict match on the full `(id, file, start, end)` finding key. */
+    private fun findFileNodeByKey(key: String): DefaultMutableTreeNode? = findFileNode { obj ->
+        findingKey(obj.inspectionId, obj.filePath, obj.startLine, obj.endLine) == key
+    }
+
     private fun selectEntryInTree(entry: ExplanationTreeEntry) {
-        val key = "${entry.inspectionId}::${entry.filePath ?: ""}"
-        val fileNode = findFileNode(key) ?: return
+        val key = findingKey(entry.inspectionId, entry.filePath, entry.startLine, entry.endLine)
+        val fileNode = findFileNodeByKey(key) ?: return
         val path = TreePath(fileNode.path)
         tree.selectionPath = path
         tree.scrollPathToVisible(path)
@@ -749,17 +766,22 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
      */
     private fun restoreLastSelection() {
         val key = FindingsSnapshotService.getInstance(project).lastSelectedKey ?: return
-        val fileNode = findFileNode(key) ?: return
+        val fileNode = findFileNodeByKey(key) ?: return
         val path = TreePath(fileNode.path)
         tree.selectionPath = path
         tree.scrollPathToVisible(path)
     }
 
-    /** Public navigation entry point — selects the SAFE tree row matching the given finding key. */
+    /**
+     * Public navigation entry point — selects the first SAFE tree row matching the given
+     * `(inspectionId, filePath)` pair. Multiple findings can share that pair (different
+     * line ranges); gutter-click navigation just lands on the first occurrence.
+     */
     fun selectByInspection(inspectionId: String?, filePath: String?) {
         if (inspectionId == null) return
-        val key = "$inspectionId::${filePath ?: ""}"
-        val fileNode = findFileNode(key) ?: return
+        val fileNode = findFileNode { obj ->
+            obj.inspectionId == inspectionId && obj.filePath == filePath
+        } ?: return
         val path = TreePath(fileNode.path)
         tree.selectionPath = path
         tree.scrollPathToVisible(path)
@@ -767,7 +789,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun updateEntryInTree(entry: ExplanationTreeEntry, key: String) {
-        val fileNode = findFileNode(key) ?: return
+        val fileNode = findFileNodeByKey(key) ?: return
         val targetExplained = entry.rawResponse.isNotBlank()
 
         // Locate the containing StatusGroupEntry by walking up the parents.
@@ -808,12 +830,18 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             // Cache stores cwe as a plain id string — re-enrich with the friendly name from CWE_MAPPING
             val cwe = cached.cwe?.let { QodanaNodeExtractor.cweFromTagString(it) }
             val meta = findingMetaFor(cached.inspectionId, cached.fileName)
+            // Prefer the line range the cache itself recorded; fall back to the snapshot
+            // for entries written before line-aware caching existed.
+            val startLine = cached.startLine ?: meta?.startLine
+            val endLine = cached.endLine ?: meta?.endLine
             val entry = ExplanationTreeEntry(
                 cached.inspectionId, cwe, cached.fileName, "", cached.response,
+                startLine = startLine,
+                endLine = endLine,
                 sastMessage = meta?.message,
                 severity = meta?.severity,
             )
-            val key = "${cached.inspectionId}::${cached.fileName ?: ""}"
+            val key = findingKey(cached.inspectionId, cached.fileName, startLine, endLine)
             explanations[key] = entry
             insertEntryIntoTree(entry)
         }
@@ -847,9 +875,31 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         updateEmptyState()
     }
 
-    fun showCachedIfAvailable(inspectionId: String?, fileName: String?): Boolean {
+    /**
+     * Repaints the JEditorPane-backed detail panes after a LaF or font/scaling change.
+     * The HTML content baked into those panes carries inline color and font-size values,
+     * so the only way to pick up the new theme/font is to re-emit the HTML.
+     */
+    private fun reapplyAppearance() {
+        contentArea.background = UIUtil.getPanelBackground()
+        flowsDescriptionArea.background = UIUtil.getPanelBackground()
+        currentEntry?.let { setHtmlContent(formatEntryAsHtml(it)) }
+        // Re-render the per-step pane as well so its colors/fonts refresh in lock-step.
+        handleFlowsSelection(flowsTree.lastSelectedPathComponent as? DefaultMutableTreeNode)
+        // Tree cells repaint themselves on LaF change via Swing's standard repaint chain;
+        // a forced revalidate here just makes the side toolbar / search field follow suit.
+        revalidate()
+        repaint()
+    }
+
+    fun showCachedIfAvailable(
+        inspectionId: String?,
+        fileName: String?,
+        startLine: Int?,
+        endLine: Int?,
+    ): Boolean {
         val id = inspectionId ?: return false
-        val key = "$id::${fileName ?: ""}"
+        val key = findingKey(id, fileName, startLine, endLine)
         val entry = explanations[key] ?: return false
         setHtmlContent(formatEntryAsHtml(entry))
         selectEntryInTree(entry)
@@ -858,19 +908,32 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     /**
      * @param cwe  Full [Cwe] object (id + optional human-readable name).
-
+     *
+     * Two findings with the same `(inspectionId, fileName)` but different line ranges are
+     * stored as separate cache entries — that lets the user explain each occurrence of,
+     * say, CWE-502 in the same file independently instead of all sharing one explanation.
      */
-    fun showExplanation(inspectionId: String?, cwe: Cwe?, fileName: String?, response: String) {
+    fun showExplanation(
+        inspectionId: String?,
+        cwe: Cwe?,
+        fileName: String?,
+        response: String,
+        startLine: Int?,
+        endLine: Int?,
+    ) {
         val id = inspectionId ?: "Unknown vulnerability"
         val severity = findingMetaFor(id, fileName)?.severity
-        val entry = ExplanationTreeEntry(id, cwe, fileName, "", response, severity = severity)
-        val key = "$id::${fileName ?: ""}"
+        val entry = ExplanationTreeEntry(
+            id, cwe, fileName, "", response,
+            startLine = startLine, endLine = endLine,
+            severity = severity,
+        )
+        val key = findingKey(id, fileName, startLine, endLine)
 
-        // Persist only the id — the name can be re-supplied on next showExplanation call.
-        // The active provider id scopes the entry so switching providers does not overwrite
-        // each other's explanations for the same finding.
+        // The active provider id + line range scope the entry, so switching providers or
+        // explaining a different occurrence of the same rule doesn't overwrite this one.
         ExplanationCacheService.getInstance(project)
-            .store(id, cwe?.id, fileName, response, activeProviderId())
+            .store(id, cwe?.id, fileName, startLine, endLine, response, activeProviderId())
 
         if (!explanations.containsKey(key)) {
             explanations[key] = entry
@@ -904,7 +967,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             // Scoped to the active provider — the same finding can legitimately appear as
             // "Not explained" under provider B while having an entry under provider A.
             if (vuln.inspectionId != null && vuln.filePath != null
-                && cache.find(vuln.inspectionId, vuln.filePath, activeProviderId()) != null) continue
+                && cache.find(vuln.inspectionId, vuln.filePath, vuln.startLine, vuln.endLine, activeProviderId()) != null) continue
 
             val entry = ExplanationTreeEntry(
                 inspectionId = id,
@@ -1008,7 +1071,11 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val mutedHex = colorToHex(UIUtil.getContextHelpForeground())
         val linkHex = colorToHex(JBUI.CurrentTheme.Link.Foreground.ENABLED)
         val codeBgHex = colorToHex(adjustBrightness(UIUtil.getPanelBackground(), if (UIUtil.isUnderDarcula()) 22 else -14))
-        val font = UIUtil.getLabelFont()
+        // JBFont.label() respects IDE-wide font scaling (Settings → Appearance, plus the
+        // Cmd+/Cmd− / "Increase IDE Font" actions), which UIUtil.getLabelFont() does not
+        // pick up consistently. The detail pane re-renders on UISettings changes so this
+        // value stays in sync after the user rescales mid-session.
+        val font = com.intellij.util.ui.JBFont.label()
         val fs = font.size
         return """
             <html><head><style>
