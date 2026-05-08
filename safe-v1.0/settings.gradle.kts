@@ -1,1 +1,1 @@
-rootProject.name = "safe"
+rootProject.name = "safe-blue"

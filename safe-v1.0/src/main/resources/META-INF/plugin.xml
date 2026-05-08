@@ -22,7 +22,7 @@
         <!-- Tool-window registration -->
         <toolWindow
                 id="SAFE-Blue"
-                factoryClass="de.fraunhofer.iem.safe.ExplanationToolWindow"
+                factoryClass="de.fraunhofer.iem.safe.blue.ExplanationToolWindow"
                 icon="/icons/toolWindowChat.svg"
                 anchor="bottom"
                 secondary="false"/>
@@ -32,7 +32,7 @@
                 parentId="tools"
                 id="de.fraunhofer.iem.safe.settings.blue"
                 displayName="SAFE-Blue"
-                instance="de.fraunhofer.iem.safe.settings.SafeSettingsConfigurable"/>
+                instance="de.fraunhofer.iem.safe.blue.settings.SafeSettingsConfigurable"/>
 
         <!-- Balloon notifications surface plugin events. -->
         <notificationGroup id="SAFE-Blue"
@@ -40,13 +40,13 @@
 
         <!-- Study-mode editor telemetry — bound to a per-project service so it
              lives exactly as long as the project. -->
-        <postStartupActivity implementation="de.fraunhofer.iem.safe.study.StudyEditorListener$StartupActivity"/>
+        <postStartupActivity implementation="de.fraunhofer.iem.safe.blue.study.StudyEditorListener$StartupActivity"/>
     </extensions>
 
     <!-- Project-level listener -->
     <projectListeners>
         <listener
-                class="de.fraunhofer.iem.safe.problems.ProblemsListener"
+                class="de.fraunhofer.iem.safe.blue.problems.ProblemsListener"
                 topic="com.intellij.analysis.problemsView.ProblemsListener"/>
     </projectListeners>
 
@@ -60,27 +60,27 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <action id="Safe.Import.Blue"
-                    class="de.fraunhofer.iem.safe.actions.ImportFileAction"
+                    class="de.fraunhofer.iem.safe.blue.actions.ImportFileAction"
                     text="Import File"
                     icon="AllIcons.ToolbarDecorator.Import"
                     description="Import SARIF file"/>
 
             <group id="Safe.LevelSliderAction.Blue"
-                   class="de.fraunhofer.iem.safe.actions.LevelSliderAction"
+                   class="de.fraunhofer.iem.safe.blue.actions.LevelSliderAction"
                    icon="AllIcons.Actions.More"
                    text="Set Expertise Level"
                    description="Pick an expertise level for the explanations"
                    popup="true"/>
 
             <action id="Safe.OpenSettings.Blue"
-                    class="de.fraunhofer.iem.safe.actions.OpenSafeSettingsAction"
+                    class="de.fraunhofer.iem.safe.blue.actions.OpenSafeSettingsAction"
                     icon="AllIcons.General.Settings"
                     text="SAFE-Blue Settings"
                     description="Configure the SAFE-Blue plugin's LLM platform, endpoint, model, and API key"/>
 
             <!-- Visible only when study mode is enabled — see PrewarmExplanationsAction.update(). -->
             <action id="Safe.PrewarmExplanations.Blue"
-                    class="de.fraunhofer.iem.safe.actions.PrewarmExplanationsAction"
+                    class="de.fraunhofer.iem.safe.blue.actions.PrewarmExplanationsAction"
                     icon="AllIcons.Actions.Compile"
                     text="Pre-warm Explanations"
                     description="Generate Intermediate-level explanations for every imported finding (study mode)"/>
