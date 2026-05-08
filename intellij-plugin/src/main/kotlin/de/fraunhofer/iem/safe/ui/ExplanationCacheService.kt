@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 
 @Service(Service.Level.PROJECT)
-@com.intellij.openapi.components.State(name = "SafeExplanationCache", storages = [Storage("saferExplanations.xml")])
+@com.intellij.openapi.components.State(name = "SafeExplanationCache-Red", storages = [Storage("safeExplanations-red.xml")])
 class ExplanationCacheService : PersistentStateComponent<ExplanationCacheService.CacheState> {
 
     data class CachedExplanation(

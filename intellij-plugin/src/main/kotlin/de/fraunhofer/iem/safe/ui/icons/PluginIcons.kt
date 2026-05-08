@@ -7,35 +7,35 @@ import javax.swing.Icon
 object PluginIcons {
     @JvmField
     val SOURCE: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("sou"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("sou"), javaClass)
     @JvmField
     val SANITIZER: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("san"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("san"), javaClass)
     @JvmField
     val SINK: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("sin"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("sin"), javaClass)
     @JvmField
     val AUTHENTICATION_SAFE: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("auth_safe"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("auth_safe"), javaClass)
     @JvmField
     val AUTHENTICATION_UNSAFE: Icon = IconLoader.getIcon(
-        PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("auth_unsafe"),
+        PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("auth_unsafe"),
         javaClass
     )
     @JvmField
     val AUTHENTICATION_NOCHANGE: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("auth_no"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("auth_no"), javaClass)
 
     @JvmField
     val PROPAGATOR: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("pro"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("pro"), javaClass)
     @JvmField
     val CWE: Icon =
-        IconLoader.getIcon(PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("cwe"), javaClass)
+        IconLoader.getIcon(PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("cwe"), javaClass)
 
     @JvmField
     val DEFAULT: Icon = IconLoader.getIcon(
-        PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format("default.png"),
+        PluginBundle.lazy("safe.configuration.ICON_PATH").get().format("default.png"),
         javaClass
     )
 }

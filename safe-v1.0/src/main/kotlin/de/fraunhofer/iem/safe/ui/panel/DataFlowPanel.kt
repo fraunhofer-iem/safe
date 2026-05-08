@@ -320,7 +320,7 @@ class DataFlowPanel(val project: Project) : JPanel() {
                 } ?: continue
 
                 if (SrmFinder.isSRM(signature)) {
-                    val tooltip = PluginBundle.lazy("fixmysast.tooltip.SRM_TOOLTIP_TEMPLATE").get()
+                    val tooltip = PluginBundle.lazy("safe.tooltip.SRM_TOOLTIP_TEMPLATE").get()
                         .format(signature, SrmFinder.getSrmAndCweCategory(signature).joinToString(","))
 
                     val range = expr.textRange

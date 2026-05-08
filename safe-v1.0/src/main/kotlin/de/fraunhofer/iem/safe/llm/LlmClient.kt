@@ -108,7 +108,7 @@ object LlmClient {
     }
 
     fun updateExplanation(issue: Issue, project: Project): String? {
-        val level = PropertiesComponent.getInstance(project).getValue("Fixmysast.expertiseValue")
+        val level = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.safe.expertiseValue")
 
         val requestBody = buildRequestBody(
             PromptTemplate.getSystemPrompt(),

@@ -18,8 +18,8 @@ import javax.swing.JTabbedPane
 import javax.swing.SwingConstants
 
 /**
- * Entry method to the FixMySast intellIJ plugin.
- * The main layout of FixMySast plugin is defined in this class.
+ * Entry method to the SAFE-Blue IntelliJ plugin.
+ * The main layout of SAFE-Blue plugin is defined in this class.
  *
  * ✨To infinity... and beyond...✨
  *             - Buzz Lightyear
@@ -36,9 +36,9 @@ class ExplanationToolWindow : ToolWindowFactory {
         //Toolbar action panel
         val toolPanel = JPanel(BorderLayout())
 
-        val actions = ActionManager.getInstance().getAction("FixMySast.Actions") as DefaultActionGroup
+        val actions = ActionManager.getInstance().getAction("Safe.Actions.Blue") as DefaultActionGroup
         val actionToolbar = ActionManager.getInstance()
-            .createActionToolbar("FixMySast.Actions", actions, true)
+            .createActionToolbar("Safe.Actions.Blue", actions, true)
         actionToolbar.targetComponent = toolPanel
 
         if (toolWindow.anchor.isHorizontal) {
@@ -59,15 +59,15 @@ class ExplanationToolWindow : ToolWindowFactory {
             val tabs = JTabbedPane()
             tabs.add(
                 ResultPanel(project),
-                PluginBundle.lazy("fixmysast.ui.tab.result").get()
+                PluginBundle.lazy("safe.ui.tab.result").get()
             )
             tabs.add(
                 ExplanationPanel(project),
-                PluginBundle.lazy("fixmysast.ui.tab.explanation").get()
+                PluginBundle.lazy("safe.ui.tab.explanation").get()
             )
             tabs.add(
                 DataFlowPanel(project),
-                PluginBundle.lazy("fixmysast.ui.tab.dataflow").get()
+                PluginBundle.lazy("safe.ui.tab.dataflow").get()
             )
 
             // Tab-switch telemetry — emits `panel.opened` / `panel.closed` /

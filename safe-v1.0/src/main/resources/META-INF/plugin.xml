@@ -3,8 +3,8 @@
 <idea-plugin>
 
     <!-- ===== Basic metadata ===== -->
-    <id>de.fraunhofer.iem.safe</id>
-    <name>SAFE</name>
+    <id>de.fraunhofer.iem.safe.blue</id>
+    <name>SAFE-Blue</name>
     <vendor url="https://www.iem.fraunhofer.de/">Fraunhofer IEM</vendor>
 
     <description><![CDATA[
@@ -27,12 +27,16 @@
                 anchor="bottom"
                 secondary="false"/>
 
-        <!-- Tools | SAFE settings page (platform, endpoint, model, temperature, key) -->
+        <!-- Tools | SAFE-Blue settings page (platform, endpoint, model, temperature, key) -->
         <applicationConfigurable
                 parentId="tools"
-                id="de.fraunhofer.iem.safe.settings"
-                displayName="SAFE"
+                id="de.fraunhofer.iem.safe.settings.blue"
+                displayName="SAFE-Blue"
                 instance="de.fraunhofer.iem.safe.settings.SafeSettingsConfigurable"/>
+
+        <!-- Balloon notifications surface plugin events. -->
+        <notificationGroup id="SAFE-Blue"
+                           displayType="BALLOON"/>
 
         <!-- Study-mode editor telemetry — bound to a per-project service so it
              lives exactly as long as the project. -->
@@ -49,32 +53,33 @@
     <!-- ===== Actions ===== -->
     <actions>
 
-        <!-- Top-level group under Tools -->
-        <group id="FixMySast.Actions" text="SAFE" popup="true">
+        <!-- Top-level group under Tools — id is suffixed with `.Blue` so the
+             two SAFE plugin variants can coexist in the same IDE without
+             colliding on action-system identifiers. -->
+        <group id="Safe.Actions.Blue" text="SAFE-Blue" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
-            <!-- Main “Run analysis” action -->
-            <action id="FixMySAST.Import"
+            <action id="Safe.Import.Blue"
                     class="de.fraunhofer.iem.safe.actions.ImportFileAction"
                     text="Import File"
                     icon="AllIcons.ToolbarDecorator.Import"
                     description="Import SARIF file"/>
 
-            <group id="FixMySAST.LevelSliderAction"
+            <group id="Safe.LevelSliderAction.Blue"
                    class="de.fraunhofer.iem.safe.actions.LevelSliderAction"
                    icon="AllIcons.Actions.More"
                    text="Set Expertise Level"
                    description="Pick an expertise level for the explanations"
                    popup="true"/>
 
-            <action id="FixMySAST.OpenSettings"
+            <action id="Safe.OpenSettings.Blue"
                     class="de.fraunhofer.iem.safe.actions.OpenSafeSettingsAction"
                     icon="AllIcons.General.Settings"
-                    text="SAFE Settings"
-                    description="Configure the SAFE plugin's LLM platform, endpoint, model, and API key"/>
+                    text="SAFE-Blue Settings"
+                    description="Configure the SAFE-Blue plugin's LLM platform, endpoint, model, and API key"/>
 
             <!-- Visible only when study mode is enabled — see PrewarmExplanationsAction.update(). -->
-            <action id="FixMySAST.PrewarmExplanations"
+            <action id="Safe.PrewarmExplanations.Blue"
                     class="de.fraunhofer.iem.safe.actions.PrewarmExplanationsAction"
                     icon="AllIcons.Actions.Compile"
                     text="Pre-warm Explanations"

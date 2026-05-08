@@ -23,7 +23,7 @@ import java.security.MessageDigest
  *     different results than the last snapshot.
  */
 @Service(Service.Level.PROJECT)
-@State(name = "SafeFindingsSnapshot", storages = [Storage("safeFindings.xml")])
+@State(name = "SafeFindingsSnapshot-Red", storages = [Storage("safeFindings-red.xml")])
 class FindingsSnapshotService : PersistentStateComponent<FindingsSnapshotService.State> {
 
     enum class Source { SARIF, QODANA }

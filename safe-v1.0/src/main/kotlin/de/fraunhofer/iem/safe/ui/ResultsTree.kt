@@ -70,7 +70,7 @@ class ResultsTree(private val project: Project) : Tree() {
         } else {
             model = null
             this.emptyText.setText(
-                PluginBundle.lazy("fixmysast.ui.tree.empty").get(),
+                PluginBundle.lazy("safe.ui.tree.empty").get(),
                 SimpleTextAttributes.REGULAR_ATTRIBUTES
             )
         }
@@ -359,10 +359,10 @@ class ResultsTree(private val project: Project) : Tree() {
         when (val userObject = node.userObject) {
             is Issue -> {
                 val showInEditorItem = JMenuItem(
-                    PluginBundle.lazy("fixmysast.ui.issues.OPEN_IN_EDITOR_OPTION").get()
+                    PluginBundle.lazy("safe.ui.issues.OPEN_IN_EDITOR_OPTION").get()
                 )
                 val showExplanationItem = JMenuItem(
-                    PluginBundle.lazy("fixmysast.ui.issues.SHOW_EXPLANATIONS_OPTION").get()
+                    PluginBundle.lazy("safe.ui.issues.SHOW_EXPLANATIONS_OPTION").get()
                 )
 
                 showInEditorItem.addActionListener {
@@ -401,7 +401,7 @@ class ResultsTree(private val project: Project) : Tree() {
                 val issue = parentNode.userObject as? Issue ?: return
 
                 val jumpToSourceItem = JMenuItem(
-                    PluginBundle.lazy("fixmysast.ui.issues.JUMP_TO_SOURCE_OPTION").get(),
+                    PluginBundle.lazy("safe.ui.issues.JUMP_TO_SOURCE_OPTION").get(),
                     AllIcons.Actions.EditSource
                 )
                 jumpToSourceItem.addActionListener {

@@ -20,7 +20,7 @@ import java.util.UUID
  * sessions instead of one ambiguous file.
  */
 @Service(Service.Level.APP)
-@State(name = "SafeStudyMode", storages = [Storage("safeStudyMode.xml")])
+@State(name = "SafeStudyMode-Red", storages = [Storage("safeStudyMode-red.xml")])
 class StudyModeSettings : PersistentStateComponent<StudyModeSettings.State> {
 
     class State {

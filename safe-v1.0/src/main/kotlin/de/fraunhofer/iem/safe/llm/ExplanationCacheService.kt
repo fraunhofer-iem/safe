@@ -19,7 +19,7 @@ import java.security.MessageDigest
  * every IDE restart.
  */
 @Service(Service.Level.PROJECT)
-@State(name = "SafeExplanationCache", storages = [Storage("safeExplanationCache.xml")])
+@State(name = "SafeExplanationCache-Blue", storages = [Storage("safeExplanationCache-blue.xml")])
 class ExplanationCacheService : PersistentStateComponent<ExplanationCacheService.CacheState> {
 
     /**

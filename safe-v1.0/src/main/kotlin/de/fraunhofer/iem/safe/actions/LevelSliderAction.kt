@@ -68,8 +68,8 @@ private class SetLevelAction(private val level: String) :
 
         Notifications.Bus.notify(
             Notification(
-                "FixMySAST",
-                "FixMySAST Update",
+                "SAFE-Blue",
+                "SAFE-Blue Update",
                 "Regenerating the explanation. Please wait.",
                 NotificationType.INFORMATION,
             ),

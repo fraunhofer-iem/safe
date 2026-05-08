@@ -73,7 +73,7 @@ data class ThreadFlowLocation(val location: Location? = null)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Rule(val id: String?, val properties: JsonNode? = null)
 
-val logger = Logger.getInstance("FixMySAST")
+val logger = Logger.getInstance("SAFE-Blue")
 
 object SarifParser {
 

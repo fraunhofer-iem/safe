@@ -53,6 +53,16 @@ class StudyEditorListener(private val project: Project) : Disposable {
     @Volatile private var safePanelVisible: Boolean = false
     @Volatile private var safePanelVisibleSinceMs: Long = 0L
 
+    /**
+     * Documents we've already attached caret / change listeners to.
+     * Declared *before* the `init` block — Kotlin initialises class fields in
+     * lexical order, and `init` calls `ensureListenersAttached(...)` which
+     * dereferences this set. A late declaration left it null at that point
+     * and produced an `NPE` on project open.
+     */
+    private val attachedDocs: MutableSet<Document> =
+        java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
+
     init {
         Disposer.register(project, this)
 
@@ -172,8 +182,6 @@ class StudyEditorListener(private val project: Project) : Disposable {
     }
 
     // ── Per-editor listener attachment ──────────────────────────────────
-
-    private val attachedDocs: MutableSet<Document> = java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
 
     private fun ensureListenersAttached(file: VirtualFile) {
         val document = FileEditorManager.getInstance(project)

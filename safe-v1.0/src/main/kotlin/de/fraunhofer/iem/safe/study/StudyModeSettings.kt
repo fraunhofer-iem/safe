@@ -19,7 +19,7 @@ import java.util.UUID
  * mid-study produces two distinguishable sessions.
  */
 @Service(Service.Level.APP)
-@State(name = "SafeStudyMode", storages = [Storage("safeStudyMode.xml")])
+@State(name = "SafeStudyMode-Blue", storages = [Storage("safeStudyMode-blue.xml")])
 class StudyModeSettings : PersistentStateComponent<StudyModeSettings.State> {
 
     class State {

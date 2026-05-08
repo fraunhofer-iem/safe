@@ -16,7 +16,7 @@ data class Srm(
 
 object SrmLoader {
     val srmCatalogMethods: Map<String, Srm> by lazy {
-        val stream = javaClass.getResourceAsStream(PluginBundle.lazy("fixmysast.configuration.SRM_CATALOG_PATH").get())
+        val stream = javaClass.getResourceAsStream(PluginBundle.lazy("safe.configuration.SRM_CATALOG_PATH").get())
             ?: throw IllegalStateException("srm-catalog.json not found in resources")
         val reader = InputStreamReader(stream)
         val json = Gson().fromJson<Map<String, Any>>(reader, object : TypeToken<Map<String, Any>>() {}.type)

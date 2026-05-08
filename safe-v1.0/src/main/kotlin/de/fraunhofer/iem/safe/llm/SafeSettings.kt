@@ -22,7 +22,7 @@ import com.intellij.openapi.components.service
  * — the previous checked-in `app.properties` file is no longer consulted.
  */
 @Service(Service.Level.APP)
-@State(name = "SafeSettings", storages = [Storage("safeSettings.xml")])
+@State(name = "SafeSettings-Blue", storages = [Storage("safeSettings-blue.xml")])
 class SafeSettings : PersistentStateComponent<SafeSettings.PersistedState> {
 
     class PersistedState {
@@ -69,7 +69,7 @@ class SafeSettings : PersistentStateComponent<SafeSettings.PersistedState> {
         // separate keys for, say, an internal Azure deployment and a public OpenAI
         // endpoint without retyping when switching between them.
         val key = "${platform.ifBlank { "default" }}|${apiUrl}"
-        return CredentialAttributes(generateServiceName("SAFE", key))
+        return CredentialAttributes(generateServiceName("SAFE-Blue", key))
     }
 
     /** True when the user has filled in at least the endpoint and model. */

@@ -84,8 +84,8 @@ class ExplanationPanel(private val project: Project) : javax.swing.JPanel() {
                 ApplicationManager.getApplication().executeOnPooledThread {
                     Notifications.Bus.notify(
                         Notification(
-                            "Notification",
-                            "FixMySAST Update",
+                            "SAFE-Blue",
+                            "SAFE-Blue Update",
                             "Re-requesting a better explanation. Please wait.",
                             NotificationType.INFORMATION
                         )
@@ -100,8 +100,8 @@ class ExplanationPanel(private val project: Project) : javax.swing.JPanel() {
                             issue.explanation = newResp
                             Notifications.Bus.notify(
                                 Notification(
-                                    "Notification",
-                                    "FixMySAST Update",
+                                    "SAFE-Blue",
+                                    "SAFE-Blue Update",
                                     "Successfully re-generated new response!",
                                     NotificationType.INFORMATION
                                 )
@@ -110,8 +110,8 @@ class ExplanationPanel(private val project: Project) : javax.swing.JPanel() {
                             issue.explanation = oldResp
                             Notifications.Bus.notify(
                                 Notification(
-                                    "Notification",
-                                    "FixMySAST Update",
+                                    "SAFE-Blue",
+                                    "SAFE-Blue Update",
                                     "Failed to re-generate new response. Please try after sometime",
                                     NotificationType.WARNING
                                 )

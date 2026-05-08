@@ -12,14 +12,14 @@ import javax.swing.Icon
 object IconUtils {
     fun getIcon(cat: String) : Icon {
         return when {
-            cat in PluginBundle.getMessage("fixmysast.categories.CWE").split(",") -> PluginIcons.CWE
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.SOURCE"), ignoreCase = true) -> PluginIcons.SOURCE
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.SINK"), ignoreCase = true) -> PluginIcons.SINK
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.PROPAGATOR"), ignoreCase = true) -> PluginIcons.PROPAGATOR
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.SANITIZER"), ignoreCase = true) -> PluginIcons.SANITIZER
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.AUTHENTICATION_UNSAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_UNSAFE
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.AUTHENTICATION_SAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_SAFE
-            cat.equals(PluginBundle.getMessage("fixmysast.categories.AUTHENTICATION_NOCHANGE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_NOCHANGE
+            cat in PluginBundle.getMessage("safe.categories.CWE").split(",") -> PluginIcons.CWE
+            cat.equals(PluginBundle.getMessage("safe.categories.SOURCE"), ignoreCase = true) -> PluginIcons.SOURCE
+            cat.equals(PluginBundle.getMessage("safe.categories.SINK"), ignoreCase = true) -> PluginIcons.SINK
+            cat.equals(PluginBundle.getMessage("safe.categories.PROPAGATOR"), ignoreCase = true) -> PluginIcons.PROPAGATOR
+            cat.equals(PluginBundle.getMessage("safe.categories.SANITIZER"), ignoreCase = true) -> PluginIcons.SANITIZER
+            cat.equals(PluginBundle.getMessage("safe.categories.AUTHENTICATION_UNSAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_UNSAFE
+            cat.equals(PluginBundle.getMessage("safe.categories.AUTHENTICATION_SAFE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_SAFE
+            cat.equals(PluginBundle.getMessage("safe.categories.AUTHENTICATION_NOCHANGE"), ignoreCase = true) -> PluginIcons.AUTHENTICATION_NOCHANGE
             else -> PluginIcons.DEFAULT
         }
     }
@@ -31,7 +31,7 @@ object IconUtils {
             val catList = categories.map { it.take(3).lowercase() }.distinct().sortedDescending()
 
             val joinedCat = catList.joinToString("_")
-            val path = PluginBundle.lazy("fixmysast.configuration.ICON_PATH").get().format(joinedCat)
+            val path = PluginBundle.lazy("safe.configuration.ICON_PATH").get().format(joinedCat)
 
             return try {
                 IconLoader.findIcon(path, IconUtils::class.java) ?: PluginIcons.DEFAULT

@@ -23,7 +23,7 @@ import com.intellij.util.xmlb.annotations.XCollection
  * IntelliJ's [PasswordSafe], keyed off `(provider, endpoint)`.
  */
 @Service(Service.Level.APP)
-@State(name = "SafeLlmSettings", storages = [Storage("safeLlmSettings.xml")])
+@State(name = "SafeLlmSettings-Red", storages = [Storage("safeLlmSettings-red.xml")])
 class SafeLlmSettings : PersistentStateComponent<SafeLlmSettings.PersistedState> {
 
     /** Per-provider configuration. One [PersistedState] holds many of these. */
@@ -177,7 +177,7 @@ class SafeLlmSettings : PersistentStateComponent<SafeLlmSettings.PersistedState>
         // the same provider can hold separate keys (matches the previous behaviour).
         val endpoint = findConfig(provider)?.endpointUrl.orEmpty()
         val key = "${provider.id}|$endpoint"
-        return CredentialAttributes(generateServiceName("SAFE", key))
+        return CredentialAttributes(generateServiceName("SAFE-Red", key))
     }
 
     companion object {
