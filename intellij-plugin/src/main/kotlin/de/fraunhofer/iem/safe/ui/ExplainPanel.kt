@@ -150,7 +150,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             val href = event.description.orEmpty()
             if (href.endsWith("toggle-sast")) {
                 sastMessageExpanded = !sastMessageExpanded
-                currentEntry?.let { setHtmlContent(formatEntryAsHtml(it)) }
+                rerenderCurrentEntryPreservingScroll()
                 return@addHyperlinkListener
             }
             if (href.endsWith("toggle-deepdive")) {
@@ -180,7 +180,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                         )
                         telemetryDeepdiveOpenedAt = 0L
                     }
-                    setHtmlContent(formatEntryAsHtml(entry))
+                    rerenderCurrentEntryPreservingScroll()
                 }
                 return@addHyperlinkListener
             }
@@ -188,8 +188,11 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 
+    /** Held as a field so toggle handlers can save / restore the scroll position around a re-render. */
+    private val detailScroll = JBScrollPane(contentArea).apply { border = JBUI.Borders.empty() }
+
     private val detailPanel = JPanel(BorderLayout()).apply {
-        add(JBScrollPane(contentArea).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
+        add(detailScroll, BorderLayout.CENTER)
     }
 
 
@@ -1176,6 +1179,30 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         contentArea.caretPosition = 0
         contentArea.revalidate()
         contentArea.repaint()
+    }
+
+    /**
+     * Re-renders the currently selected finding without scrolling the detail
+     * pane back to the top. JEditorPane resets its caret to position 0 on every
+     * `setText`, which the surrounding `JBScrollPane` honours by snapping to
+     * the top — fine when the user has just selected a different finding,
+     * jarring when the user only toggled an in-line disclosure (deep dive,
+     * original SAST message). We capture the viewport's vertical offset before
+     * the rebuild and restore it on the next EDT cycle, after the new layout
+     * has had a chance to size itself.
+     */
+    private fun rerenderCurrentEntryPreservingScroll() {
+        val entry = currentEntry ?: return
+        val savedY = detailScroll.viewport.viewPosition.y
+        setHtmlContent(formatEntryAsHtml(entry))
+        ApplicationManager.getApplication().invokeLater {
+            // Clamp to the (possibly new) document height so we don't try to
+            // scroll past the bottom when the deep dive is collapsed.
+            val maxY = (detailScroll.viewport.view.height - detailScroll.viewport.height)
+                .coerceAtLeast(0)
+            val targetY = savedY.coerceIn(0, maxY)
+            detailScroll.viewport.viewPosition = java.awt.Point(0, targetY)
+        }
     }
 
     private fun createStyleSheet(): StyleSheet {
