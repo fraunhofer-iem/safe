@@ -37,6 +37,18 @@ class ResultsTree(private val project: Project) : Tree() {
     private var currentIssue: Issue? = null
     val bus: MessageBus = project.messageBus
 
+    /**
+     * Public access to the loaded findings for code that needs to walk all
+     * issues — primarily the study-mode telemetry (editor caret tracking,
+     * pre-warm action). Returns an empty list before [addTreeNodes] runs.
+     */
+    fun allIssuesOrEmpty(): List<Issue> =
+        if (::results.isInitialized) results.issues else emptyList()
+
+    // ── Telemetry state ──────────────────────────────────────────────────
+    private var telemetryFindingDisplayedAt: Long = 0L
+    private var telemetrySelectedFindingId: String? = null
+
     init {
 
         cellRenderer = ResultsTreeRenderer()
@@ -73,6 +85,7 @@ class ResultsTree(private val project: Project) : Tree() {
                 if (node != null && node.userObject is Issue) {
 
                     val issue = node.userObject as Issue
+                    onFindingSelectedFromTree(issue, "tree_issue")
                     currentIssue = issue
 
                     // Also notify the explanation panel — it consults the
@@ -98,6 +111,7 @@ class ResultsTree(private val project: Project) : Tree() {
                     // the side panels — it does NOT kick off a fresh LLM call.
                     // To generate an explanation, the user right-clicks the
                     // issue and picks "Get Explanation" from the popup menu.
+                    onFindingSelectedFromTree(issue, "tree_location")
                     currentIssue = issue
 
                     val explanationPanel =
@@ -146,6 +160,78 @@ class ResultsTree(private val project: Project) : Tree() {
 
     fun refreshTree(project: Project) {
         //explainResult(project,  currentIssue,)
+    }
+
+    /**
+     * Emits study-mode `finding.deselected` (with surface-word count and dwell)
+     * for the previously displayed finding, then `finding.selected` for the
+     * incoming one. Called from the tree's click handler — single source of
+     * truth so both the Issue-row and Location-row click branches log the same
+     * lifecycle bracket.
+     */
+    private fun onFindingSelectedFromTree(issue: Issue, source: String) {
+        val recorder = de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project)
+        val incomingId = telemetryIdOf(issue)
+        if (incomingId == telemetrySelectedFindingId) return
+
+        // Bracket the previous finding's view first.
+        val previousId = telemetrySelectedFindingId
+        if (previousId != null && telemetryFindingDisplayedAt > 0L) {
+            val previous = currentIssue
+            recorder.record(
+                event = "finding.deselected",
+                findingId = previousId,
+                data = mapOf(
+                    "dwell_ms" to (System.currentTimeMillis() - telemetryFindingDisplayedAt)
+                        .coerceAtLeast(0L),
+                    "surface_word_count" to surfaceWordCountOf(previous),
+                ),
+            )
+        }
+
+        telemetrySelectedFindingId = incomingId
+        telemetryFindingDisplayedAt = System.currentTimeMillis()
+        recorder.record(
+            event = "finding.selected",
+            findingId = incomingId,
+            data = mapOf(
+                "source" to source,
+                "type" to issue.type,
+                "file" to issue.location.fileName,
+                "start_line" to issue.location.startLine,
+                "end_line" to issue.location.endLine,
+                "has_explanation" to !(issue.explanation.isNullOrBlank() || issue.explanation == "N/A"),
+            ),
+        )
+    }
+
+    private fun telemetryIdOf(issue: Issue): String =
+        "${issue.type}::${issue.location.fileName}::${issue.location.startLine}::${issue.location.endLine}"
+
+    /**
+     * Word count of the *surface* sections (overview + explanation) of the
+     * given issue's response. The example and mitigation sections are
+     * collapsed by default in v1's UI, so they're excluded — that keeps the
+     * metric comparable to the new plugin's surface-word-count, which also
+     * excludes the deep-dive.
+     */
+    private fun surfaceWordCountOf(issue: Issue?): Int {
+        val response = issue?.explanation ?: return 0
+        if (response.isBlank() || response == "N/A") return 0
+        val markerKey = Regex(
+            """\*\*(OVERVIEW|EXPLANATION)\*\*\s*:?\s*""",
+            RegexOption.IGNORE_CASE,
+        )
+        val anyMarker = Regex("""\*\*[A-Za-z_]+\*\*""")
+        val sections = mutableListOf<String>()
+        for (m in markerKey.findAll(response)) {
+            val start = m.range.last + 1
+            val end = anyMarker.find(response, start)?.range?.first ?: response.length
+            sections.add(response.substring(start, end).trim())
+        }
+        val text = sections.joinToString(" ")
+        if (text.isBlank()) return 0
+        return text.split(Regex("\\s+")).count { it.isNotBlank() }
     }
 
     fun parseFile(resultsFile: String, project: Project): Results {
@@ -287,6 +373,13 @@ class ResultsTree(private val project: Project) : Tree() {
                 }
                 showExplanationItem.addActionListener {
                     currentIssue = userObject
+                    val cached = !(userObject.explanation.isNullOrBlank()
+                        || userObject.explanation == "N/A")
+                    de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+                        event = if (cached) "re_explain.invoked" else "explain.invoked",
+                        findingId = telemetryIdOf(userObject),
+                        data = mapOf("source" to "context_menu", "force" to cached),
+                    )
                     // Kick off the LLM call (status-bar progress, panel auto-updates
                     // when the response arrives). The immediate showExplanation
                     // publish below makes the panel render the loading placeholder

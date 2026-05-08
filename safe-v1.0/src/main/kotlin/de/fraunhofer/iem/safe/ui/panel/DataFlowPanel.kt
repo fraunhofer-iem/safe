@@ -54,6 +54,13 @@ class DataFlowPanel(val project: Project) : JPanel() {
         addActionListener {
             if (currentTraceIndex > 0) {
                 currentTraceIndex--
+                de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+                    event = "data_flow.step_clicked",
+                    data = mapOf(
+                        "direction" to "prev",
+                        "step_index" to currentTraceIndex,
+                    ),
+                )
                 scrollToCurrentTrace()
                 refreshNavigationButtons()
             }
@@ -65,6 +72,13 @@ class DataFlowPanel(val project: Project) : JPanel() {
             val trace = dataFlowTrace ?: return@addActionListener
             if (currentTraceIndex < trace.size - 1) {
                 currentTraceIndex++
+                de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+                    event = "data_flow.step_clicked",
+                    data = mapOf(
+                        "direction" to "next",
+                        "step_index" to currentTraceIndex,
+                    ),
+                )
                 scrollToCurrentTrace()
                 refreshNavigationButtons()
             }

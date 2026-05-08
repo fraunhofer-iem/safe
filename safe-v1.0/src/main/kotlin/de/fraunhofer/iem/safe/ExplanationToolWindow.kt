@@ -70,6 +70,40 @@ class ExplanationToolWindow : ToolWindowFactory {
                 PluginBundle.lazy("fixmysast.ui.tab.dataflow").get()
             )
 
+            // Tab-switch telemetry — emits `panel.opened` / `panel.closed` /
+            // `panel.dwell` keyed by tab title (e.g. "Result" / "Explanation" /
+            // "Data Flow"). One pair of bracket events per visit so analysis
+            // can see how long participants spent on each pane.
+            var lastTabIndex = tabs.selectedIndex
+            var lastTabEnteredAt = System.currentTimeMillis()
+            val recorder = de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project)
+            // Initial open of whichever tab is selected on first paint.
+            recorder.record(
+                event = "panel.opened",
+                data = mapOf("panel" to tabs.getTitleAt(lastTabIndex)),
+            )
+            tabs.addChangeListener {
+                val now = System.currentTimeMillis()
+                val outgoingTitle = tabs.getTitleAt(lastTabIndex)
+                recorder.record(
+                    event = "panel.closed",
+                    data = mapOf("panel" to outgoingTitle),
+                )
+                recorder.record(
+                    event = "panel.dwell",
+                    data = mapOf(
+                        "panel" to outgoingTitle,
+                        "ms" to (now - lastTabEnteredAt).coerceAtLeast(0L),
+                    ),
+                )
+                lastTabIndex = tabs.selectedIndex
+                lastTabEnteredAt = now
+                recorder.record(
+                    event = "panel.opened",
+                    data = mapOf("panel" to tabs.getTitleAt(lastTabIndex)),
+                )
+            }
+
             secondComponent = tabs
         }
 

@@ -58,6 +58,14 @@ private class SetLevelAction(private val level: String) :
         props.setValue(LevelSliderAction.PREV_EXPERTISE_KEY, previousLevel)
         props.setValue(LevelSliderAction.EXPERTISE_KEY, level)
 
+        de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+            event = "expertise.changed",
+            data = mapOf(
+                "from" to (previousLevel ?: "(unset)"),
+                "to" to level,
+            ),
+        )
+
         Notifications.Bus.notify(
             Notification(
                 "FixMySAST",

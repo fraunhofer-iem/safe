@@ -21,7 +21,7 @@
 
         <!-- Tool-window registration -->
         <toolWindow
-                id="SAFE"
+                id="SAFE-Blue"
                 factoryClass="de.fraunhofer.iem.safe.ExplanationToolWindow"
                 icon="AllIcons.Toolwindows.Documentation"
                 anchor="bottom"
@@ -33,6 +33,10 @@
                 id="de.fraunhofer.iem.safe.settings"
                 displayName="SAFE"
                 instance="de.fraunhofer.iem.safe.settings.SafeSettingsConfigurable"/>
+
+        <!-- Study-mode editor telemetry — bound to a per-project service so it
+             lives exactly as long as the project. -->
+        <postStartupActivity implementation="de.fraunhofer.iem.safe.study.StudyEditorListener$StartupActivity"/>
     </extensions>
 
     <!-- Project-level listener -->
@@ -68,6 +72,13 @@
                     icon="AllIcons.General.Settings"
                     text="SAFE Settings"
                     description="Configure the SAFE plugin's LLM platform, endpoint, model, and API key"/>
+
+            <!-- Visible only when study mode is enabled — see PrewarmExplanationsAction.update(). -->
+            <action id="FixMySAST.PrewarmExplanations"
+                    class="de.fraunhofer.iem.safe.actions.PrewarmExplanationsAction"
+                    icon="AllIcons.Actions.Compile"
+                    text="Pre-warm Explanations"
+                    description="Generate Intermediate-level explanations for every imported finding (study mode)"/>
         </group>
 
     </actions>

@@ -27,9 +27,26 @@ class ImportFileAction : AnAction(AllIcons.Actions.Install) {
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             val selectedFile = fileChooser.selectedFile
 
+            de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(e.project!!).record(
+                event = "findings.imported",
+                data = mapOf(
+                    "source" to (if (selectedFile.name.lowercase().endsWith(".sarif")) "sarif" else "json"),
+                    "file" to selectedFile.name,
+                    "sha256" to sha256Of(selectedFile),
+                ),
+            )
+
             val publisher: ParseFileNotifier =
                 e.project!!.messageBus.syncPublisher(ParseFileNotifier.PARSE_SARIF_FILE)
             publisher.parse(selectedFile.absolutePath)
         }
+    }
+
+    private fun sha256Of(file: File): String = try {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        digest.update(file.readBytes())
+        digest.digest().joinToString("") { "%02x".format(it) }
+    } catch (_: Exception) {
+        ""
     }
 }
