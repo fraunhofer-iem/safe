@@ -23,7 +23,7 @@
         <toolWindow
                 id="SAFE-Blue"
                 factoryClass="de.fraunhofer.iem.safe.ExplanationToolWindow"
-                icon="AllIcons.Toolwindows.Documentation"
+                icon="/icons/toolWindowChat.svg"
                 anchor="bottom"
                 secondary="false"/>
 
