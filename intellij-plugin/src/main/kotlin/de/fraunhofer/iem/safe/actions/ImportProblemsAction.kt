@@ -126,6 +126,16 @@ class ImportProblemsAction : AnAction() {
                         sarifPath.toAbsolutePath().toString(),
                     )
 
+                    de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+                        event = "findings.imported",
+                        data = mapOf(
+                            "source" to "sarif",
+                            "file" to sarifPath.fileName.toString(),
+                            "count" to findings.size,
+                            "sha256" to sha256Of(sarifPath),
+                        ),
+                    )
+
                     ApplicationManager.getApplication().invokeLater {
                         populatePanel(project, findings, sarifPath.fileName.toString(), interactive)
                     }
@@ -134,7 +144,7 @@ class ImportProblemsAction : AnAction() {
         }
 
         private fun populatePanel(project: Project, findings: List<VulnerabilityInfo>, source: String, interactive: Boolean) {
-            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("SAFE") ?: return
+            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("SAFE-Red") ?: return
             val highlightService = VulnerabilityHighlightService.getInstance(project)
             val storage = ExplanationStorageService.getInstance(project)
             for (finding in findings) {
@@ -173,6 +183,19 @@ class ImportProblemsAction : AnAction() {
                     highlightService.applyHighlight(project, finding, explanation = "")
                 }
             }
+        }
+
+        /**
+         * SHA-256 of the SARIF file contents — written into `findings.imported` so
+         * post-study analysis can confirm both plugins ran on the same input.
+         * Returns the empty string if the file can't be read.
+         */
+        private fun sha256Of(path: Path): String = try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update(java.nio.file.Files.readAllBytes(path))
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            ""
         }
     }
 }

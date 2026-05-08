@@ -8,9 +8,15 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import com.intellij.ui.TitledSeparator
+import com.intellij.ui.components.JBCheckBox
 import de.fraunhofer.iem.safe.llm.ProviderKind
 import de.fraunhofer.iem.safe.llm.SafeLlmSettings
 import de.fraunhofer.iem.safe.llm.SafeProviderChangeListener
+import de.fraunhofer.iem.safe.study.StudyModeSettings
+import java.awt.Desktop
+import java.io.File
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
@@ -50,6 +56,13 @@ class SafeSettingsConfigurable : Configurable {
     private val temperatureField = JBTextField()
     private val apiKeyField = JBPasswordField()
 
+    // ── Study mode ────────────────────────────────────────────────────────
+    private val studySettings = StudyModeSettings.getInstance()
+    private val studyEnabled = JBCheckBox("Enable user-study telemetry")
+    private val participantField = JBTextField()
+    private val telemetryDirField = JBTextField()
+    private val openTelemetryFolderButton = JButton("Open folder")
+
     private var rootPanel: JPanel? = null
     private var modified = false
 
@@ -76,6 +89,14 @@ class SafeSettingsConfigurable : Configurable {
     override fun getDisplayName(): String = "SAFE"
 
     override fun createComponent(): JComponent {
+        openTelemetryFolderButton.addActionListener {
+            val raw = telemetryDirField.text.trim()
+            val dir = if (raw.isNotBlank()) File(raw)
+            else File(System.getProperty("user.home"), ".safe-telemetry")
+            if (!dir.exists()) dir.mkdirs()
+            runCatching { Desktop.getDesktop().open(dir) }
+        }
+
         val panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(JBLabel("Provider:"), providerCombo, 1, false)
             .addLabeledComponent(JBLabel("Endpoint URL:"), endpointField, 1, false)
@@ -83,6 +104,14 @@ class SafeSettingsConfigurable : Configurable {
             .addLabeledComponent(JBLabel("Temperature:"), temperatureField, 1, false)
             .addLabeledComponent(JBLabel("API key:"), apiKeyField, 1, false)
             .addLabeledComponent(agentLlmRow, agentLlmCombo, 1, false)
+            .addComponent(TitledSeparator("Study mode"))
+            .addComponent(studyEnabled)
+            .addLabeledComponent(JBLabel("Participant id:"), participantField, 1, false)
+            .addLabeledComponent(
+                JBLabel("Telemetry folder (blank ⇒ <project>/.idea/safe-telemetry):"),
+                telemetryDirField, 1, false,
+            )
+            .addComponent(openTelemetryFolderButton)
             .addComponentFillVertically(JPanel(), 0)
             .panel
         panel.border = JBUI.Borders.empty(10)
@@ -96,6 +125,9 @@ class SafeSettingsConfigurable : Configurable {
         modelField.document.addDocumentListener(docListener)
         temperatureField.document.addDocumentListener(docListener)
         apiKeyField.document.addDocumentListener(docListener)
+        participantField.document.addDocumentListener(docListener)
+        telemetryDirField.document.addDocumentListener(docListener)
+        studyEnabled.addActionListener { onFieldChanged() }
 
         providerCombo.addActionListener {
             val next = providerCombo.selectedItem as? ProviderKind ?: return@addActionListener
@@ -115,6 +147,7 @@ class SafeSettingsConfigurable : Configurable {
 
         rootPanel = panel
         reset()
+        recordTelemetry("settings.opened")
         return panel
     }
 
@@ -184,6 +217,12 @@ class SafeSettingsConfigurable : Configurable {
 
         settings.agentLlmProvider = agentLlmCombo.selectedItem as? ProviderKind
         settings.providerKind = nextProvider
+
+        // Study-mode fields are independent of the per-provider drafts.
+        studySettings.enabled = studyEnabled.isSelected
+        studySettings.participantId = participantField.text.trim()
+        studySettings.telemetryDir = telemetryDirField.text.trim()
+
         modified = false
 
         if (previousProvider != nextProvider) {
@@ -202,6 +241,9 @@ class SafeSettingsConfigurable : Configurable {
         loadingForm = true
         try {
             agentLlmCombo.selectedItem = settings.agentLlmProvider
+            studyEnabled.isSelected = studySettings.enabled
+            participantField.text = studySettings.participantId
+            telemetryDirField.text = studySettings.telemetryDir
         } finally {
             loadingForm = false
         }
@@ -210,6 +252,20 @@ class SafeSettingsConfigurable : Configurable {
     }
 
     override fun disposeUIResources() {
+        recordTelemetry("settings.closed")
         rootPanel = null
+    }
+
+    /**
+     * Settings telemetry isn't tied to a single project — it's an app-level
+     * configurable. Emit on every open project so the participant's session
+     * file captures the event regardless of which project is in focus.
+     */
+    private fun recordTelemetry(event: String) {
+        if (!StudyModeSettings.getInstance().enabled) return
+        for (project in com.intellij.openapi.project.ProjectManager.getInstance().openProjects) {
+            de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project)
+                .record(event = event)
+        }
     }
 }

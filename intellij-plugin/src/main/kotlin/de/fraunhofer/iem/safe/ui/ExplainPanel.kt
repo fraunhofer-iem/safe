@@ -27,6 +27,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.fraunhofer.iem.safe.llm.SafeLlmSettings
 import de.fraunhofer.iem.safe.llm.SafeProviderChangeListener
+import de.fraunhofer.iem.safe.study.TelemetryRecorder
 import de.fraunhofer.iem.safe.sast.Cwe
 import de.fraunhofer.iem.safe.sast.QodanaNodeExtractor
 import de.fraunhofer.iem.safe.sast.StepRole
@@ -125,6 +126,16 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     /** Parsed `**STEP T.S**` explanations from [currentEntry]'s LLM response, refreshed whenever a finding is loaded. */
     private var cachedStepExplanations: Map<Pair<Int, Int>, String> = emptyMap()
 
+    // ── Study-mode telemetry state ────────────────────────────────────────
+    // All timestamps are wall-clock millis from `System.currentTimeMillis()`,
+    // intentionally — the recorder writes ISO-8601 timestamps already, these
+    // are just deltas for dwell / time-to-open metrics.
+    private var telemetryFindingDisplayedAt: Long = 0L
+    private var telemetryDeepdiveOpenedAt: Long = 0L
+    private var telemetryStepEnteredAt: Long = 0L
+    /** Last glossary term the tooltip showed, deduped so cursor jitter doesn't flood the JSONL. */
+    private var telemetryLastTooltipTerm: String = ""
+
     private val contentArea = object : JEditorPane() {
         override fun getToolTipText(event: MouseEvent): String? = htmlTitleAt(this, event)
     }.apply {
@@ -144,7 +155,33 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             }
             if (href.endsWith("toggle-deepdive")) {
                 deepDiveExpanded = !deepDiveExpanded
-                currentEntry?.let { setHtmlContent(formatEntryAsHtml(it)) }
+                val entry = currentEntry
+                if (entry != null) {
+                    val now = System.currentTimeMillis()
+                    val recorder = TelemetryRecorder.getInstance(project)
+                    if (deepDiveExpanded) {
+                        telemetryDeepdiveOpenedAt = now
+                        recorder.record(
+                            event = "deepdive.opened",
+                            findingId = findingTelemetryId(entry),
+                            data = mapOf(
+                                "time_to_open_ms" to (now - telemetryFindingDisplayedAt)
+                                    .coerceAtLeast(0L),
+                            ),
+                        )
+                    } else {
+                        recorder.record(
+                            event = "deepdive.closed",
+                            findingId = findingTelemetryId(entry),
+                            data = mapOf(
+                                "dwell_ms" to (now - telemetryDeepdiveOpenedAt)
+                                    .coerceAtLeast(0L),
+                            ),
+                        )
+                        telemetryDeepdiveOpenedAt = 0L
+                    }
+                    setHtmlContent(formatEntryAsHtml(entry))
+                }
                 return@addHyperlinkListener
             }
             event.url?.let { BrowserUtil.browse(it) }
@@ -312,9 +349,26 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             when (val userObject = selectedNode.userObject) {
                 is ExplanationTreeEntry -> {
                     if (userObject != currentEntry) {
+                        // Emit finding.deselected for the previous finding before
+                        // we drop its state — captures dwell and the word count
+                        // that was on screen when the participant moved on.
+                        emitFindingDeselected(currentEntry)
                         currentEntry = userObject
                         sastMessageExpanded = false
                         deepDiveExpanded = false
+                        telemetryFindingDisplayedAt = System.currentTimeMillis()
+                        telemetryDeepdiveOpenedAt = 0L
+                        TelemetryRecorder.getInstance(project).record(
+                            event = "finding.selected",
+                            findingId = findingTelemetryId(userObject),
+                            data = mapOf(
+                                "cwe" to userObject.cwe?.id,
+                                "file" to userObject.filePath,
+                                "start_line" to userObject.startLine,
+                                "end_line" to userObject.endLine,
+                                "has_explanation" to userObject.rawResponse.isNotBlank(),
+                            ),
+                        )
                     }
                     setHtmlContent(formatEntryAsHtml(userObject))
                     val traces = lookupTraces(userObject)
@@ -357,6 +411,17 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 val path = flowsTree.getPathForLocation(e.x, e.y) ?: return
                 val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
                 val step = node.userObject as? TaintStep ?: return
+                val key = stepKeyOf(node)
+                TelemetryRecorder.getInstance(project).record(
+                    event = "flows.editor_jumped",
+                    findingId = currentEntry?.let { findingTelemetryId(it) },
+                    data = mapOf(
+                        "trace_index" to (key?.first ?: -1),
+                        "step_index" to (key?.second ?: -1),
+                        "file" to step.filePath,
+                        "line" to step.startLine,
+                    ),
+                )
                 navigateToStep(step)
             }
         })
@@ -494,14 +559,53 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
      *                  raw SAST message.
      */
     private fun handleFlowsSelection(node: DefaultMutableTreeNode?) {
+        val recorder = TelemetryRecorder.getInstance(project)
+        val now = System.currentTimeMillis()
+        val findingId = currentEntry?.let { findingTelemetryId(it) }
+
         when (val obj = node?.userObject) {
             is TaintStep -> {
                 val key = stepKeyOf(node)
                 if (key != currentStepKey) {
+                    // Emit dwell for the previous step before we move on.
+                    val previous = currentStepKey
+                    if (previous != null && telemetryStepEnteredAt > 0L) {
+                        recorder.record(
+                            event = "flows.step_dwell",
+                            findingId = findingId,
+                            data = mapOf(
+                                "trace_index" to previous.first,
+                                "step_index" to previous.second,
+                                "dwell_ms" to (now - telemetryStepEnteredAt).coerceAtLeast(0L),
+                            ),
+                        )
+                    }
                     currentStepKey = key
                     stepOriginalExpanded = false
+                    telemetryStepEnteredAt = now
+                    if (key != null) {
+                        recorder.record(
+                            event = "flows.step_clicked",
+                            findingId = findingId,
+                            data = mapOf(
+                                "trace_index" to key.first,
+                                "step_index" to key.second,
+                                "role" to StepRoleResolver.resolve(obj.message, key.second, totalStepsInTrace(node)).name,
+                            ),
+                        )
+                    }
                 }
                 val explanation = key?.let { cachedStepExplanations[it] }
+                if (explanation != null) {
+                    recorder.record(
+                        event = "flows.step_explanation_opened",
+                        findingId = findingId,
+                        data = mapOf(
+                            "trace_index" to key.first,
+                            "step_index" to key.second,
+                        ),
+                    )
+                }
                 renderFlowsDescriptionPane(
                     explanation = explanation,
                     originalMessage = obj.message,
@@ -510,6 +614,12 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             }
             is TraceNodeEntry -> {
                 currentStepKey = null
+                telemetryStepEnteredAt = 0L
+                recorder.record(
+                    event = "flows.trace_clicked",
+                    findingId = findingId,
+                    data = mapOf("title" to obj.title.take(120)),
+                )
                 renderFlowsDescriptionPane(
                     explanation = obj.title,
                     originalMessage = null,
@@ -518,11 +628,16 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             }
             else -> {
                 currentStepKey = null
+                telemetryStepEnteredAt = 0L
                 flowsSplitter.secondComponent = null
                 flowsDescriptionArea.text = ""
             }
         }
     }
+
+    /** Total step count in the trace that contains [stepNode]; defaults to 1 if the structure is unexpected. */
+    private fun totalStepsInTrace(stepNode: DefaultMutableTreeNode): Int =
+        (stepNode.parent as? DefaultMutableTreeNode)?.childCount ?: 1
 
     /** Computes (traceIndex, stepIndex) for a flows-tree leaf node, both 0-based. */
     private fun stepKeyOf(stepNode: DefaultMutableTreeNode): Pair<Int, Int>? {
@@ -1265,14 +1380,93 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 val value = attrs.getAttribute(name)
                 if (value is javax.swing.text.AttributeSet) {
                     val title = value.getAttribute(javax.swing.text.html.HTML.Attribute.TITLE)
-                    if (title is String && title.isNotEmpty()) return title
+                    if (title is String && title.isNotEmpty()) {
+                        recordGlossaryTooltipShown(pos, title)
+                        return title
+                    }
                 }
             }
             val direct = attrs.getAttribute(javax.swing.text.html.HTML.Attribute.TITLE)
-            if (direct is String && direct.isNotEmpty()) return direct
+            if (direct is String && direct.isNotEmpty()) {
+                recordGlossaryTooltipShown(pos, direct)
+                return direct
+            }
             elem = elem.parentElement
         }
         return null
+    }
+
+    /**
+     * Emits a `glossary.tooltip_shown` event the first time a given term's
+     * tooltip resolves at a particular caret position, so cursor jitter over
+     * the same word doesn't flood the JSONL with duplicates. The "term" is
+     * derived from the underlying anchor text — we only have the title and
+     * caret position handy, so we approximate by hashing those together.
+     */
+    private fun recordGlossaryTooltipShown(pos: Int, title: String) {
+        val key = "$pos::${title.hashCode()}"
+        if (key == telemetryLastTooltipTerm) return
+        telemetryLastTooltipTerm = key
+        TelemetryRecorder.getInstance(project).record(
+            event = "glossary.tooltip_shown",
+            findingId = currentEntry?.let { findingTelemetryId(it) },
+            data = mapOf("title_preview" to title.take(80)),
+        )
+    }
+
+    // ── Telemetry helpers ─────────────────────────────────────────────────
+
+    /** Stable cross-event finding identifier; matches the key the cache layer uses. */
+    private fun findingTelemetryId(entry: ExplanationTreeEntry): String =
+        findingKey(entry.inspectionId, entry.filePath, entry.startLine, entry.endLine)
+
+    /**
+     * Word count of the *surface* sections (TLDR, WHAT, WHERE, WHY, HOW) that
+     * the participant has had on screen for the given finding. Excludes the
+     * deep-dive — that's tracked separately via `deepdive.opened/closed`. The
+     * raw response is parsed using the same regex that drives the panel's
+     * rendering so the count reflects what was actually visible.
+     */
+    private fun surfaceWordCountOf(entry: ExplanationTreeEntry): Int {
+        val sections = parseResponseSections(entry.rawResponse)
+        val text = listOf("tldr", "what", "where", "why", "how")
+            .mapNotNull { sections[it] }
+            .joinToString(" ")
+        if (text.isBlank()) return 0
+        return text.split(Regex("\\s+")).count { it.isNotBlank() }
+    }
+
+    /**
+     * Emits `finding.deselected` for the previously-displayed finding (if any),
+     * carrying the visible-surface word count and total dwell. Also flushes any
+     * still-open deep-dive so the analysis sees a closed bracket per opened one.
+     */
+    private fun emitFindingDeselected(previous: ExplanationTreeEntry?) {
+        if (previous == null || telemetryFindingDisplayedAt == 0L) return
+        val now = System.currentTimeMillis()
+        val recorder = TelemetryRecorder.getInstance(project)
+        val findingId = findingTelemetryId(previous)
+        if (telemetryDeepdiveOpenedAt > 0L) {
+            recorder.record(
+                event = "deepdive.closed",
+                findingId = findingId,
+                data = mapOf(
+                    "dwell_ms" to (now - telemetryDeepdiveOpenedAt).coerceAtLeast(0L),
+                    "reason" to "navigated_away",
+                ),
+            )
+            telemetryDeepdiveOpenedAt = 0L
+        }
+        recorder.record(
+            event = "finding.deselected",
+            findingId = findingId,
+            data = mapOf(
+                "dwell_ms" to (now - telemetryFindingDisplayedAt).coerceAtLeast(0L),
+                "surface_word_count" to surfaceWordCountOf(previous),
+                "deepdive_was_opened" to (telemetryDeepdiveOpenedAt > 0L
+                    || (previous == currentEntry && deepDiveExpanded)),
+            ),
+        )
     }
 
     private fun colorToHex(color: Color): String =
@@ -1329,6 +1523,8 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             })
             addSeparator()
             add(de.fraunhofer.iem.safe.actions.SafeProviderComboAction())
+            // Visible only when study mode is enabled — see PrewarmExplanationsAction.update().
+            add(de.fraunhofer.iem.safe.actions.PrewarmExplanationsAction())
             add(object : AnAction(
                 "SAFE Settings",
                 "Configure the LLM provider, endpoint, model, and API key",

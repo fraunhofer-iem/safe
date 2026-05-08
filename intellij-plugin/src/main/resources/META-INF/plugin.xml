@@ -20,13 +20,17 @@
     <extensions defaultExtensionNs="com.intellij">
 
         <!-- Tool-window registration -->
-        <toolWindow id="SAFE"
+        <toolWindow id="SAFE-Red"
                     anchor="bottom"
                     factoryClass="de.fraunhofer.iem.safe.ExplainerToolWindowFactory"
                     icon="/icons/toolWindowChat.svg"/>
 
         <!-- Auto-restore the last imported SARIF file on project open -->
         <postStartupActivity implementation="de.fraunhofer.iem.safe.SafeStartupActivity"/>
+
+        <!-- Study-mode editor telemetry — bound to a per-project service so it
+             lives exactly as long as the project. -->
+        <postStartupActivity implementation="de.fraunhofer.iem.safe.study.StudyEditorListener$StartupActivity"/>
 
         <!-- Tools | SAFE settings page (provider, endpoint, model, key) -->
         <applicationConfigurable

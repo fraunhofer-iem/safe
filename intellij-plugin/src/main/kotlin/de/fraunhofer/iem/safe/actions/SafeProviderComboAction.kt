@@ -50,7 +50,17 @@ private class SetProviderAction(private val target: ProviderKind) :
     override fun actionPerformed(e: AnActionEvent) {
         val settings = SafeLlmSettings.getInstance()
         if (settings.providerKind == target) return
+        val previous = settings.providerKind
         settings.providerKind = target
+        e.project?.let { project ->
+            de.fraunhofer.iem.safe.study.TelemetryRecorder.getInstance(project).record(
+                event = "provider.switched",
+                data = mapOf(
+                    "from" to previous.id,
+                    "to" to target.id,
+                ),
+            )
+        }
         ApplicationManager.getApplication().messageBus
             .syncPublisher(SafeProviderChangeListener.TOPIC)
             .providerChanged(target.id)
