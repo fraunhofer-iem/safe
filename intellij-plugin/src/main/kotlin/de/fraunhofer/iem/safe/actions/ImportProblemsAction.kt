@@ -5,8 +5,10 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -84,12 +86,19 @@ class ImportProblemsAction : AnAction() {
         val descriptor = FileChooserDescriptorFactory.singleFile()
             .withTitle("Select SARIF File")
             .withDescription("Choose a SARIF file (.sarif or .json) to import findings from")
-        val virtualFile = FileChooser.chooseFile(descriptor, project, null) ?: return null
+        val props = PropertiesComponent.getInstance(project)
+        val lfs = LocalFileSystem.getInstance()
+        val toSelect = props.getValue(LAST_IMPORT_DIR_KEY)?.let { lfs.findFileByPath(it) }
+            ?: project.basePath?.let { lfs.findFileByPath(it) }
+        val virtualFile = FileChooser.chooseFile(descriptor, project, toSelect) ?: return null
+        virtualFile.parent?.path?.let { props.setValue(LAST_IMPORT_DIR_KEY, it) }
         return Paths.get(virtualFile.path)
     }
 
     companion object {
         private val sharedLogger = Logger.getInstance(ImportProblemsAction::class.java)
+
+        private const val LAST_IMPORT_DIR_KEY = "de.fraunhofer.iem.safe.red.lastImportDir"
 
         /**
          * Parses a SARIF file and routes findings into the SAFE tool window and editor highlights.
