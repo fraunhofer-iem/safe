@@ -105,6 +105,23 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     private fun updateEmptyState() {
         val isEmpty = explanations.isEmpty()
         tree.isRootVisible = !isEmpty
+        val newLabel = currentSourceLabel()
+        if (rootNode.userObject != newLabel) {
+            rootNode.userObject = newLabel
+            treeModel.nodeChanged(rootNode)
+        }
+    }
+
+    private fun currentSourceLabel(): String {
+        val snapshot = FindingsSnapshotService.getInstance(project)
+        return when (snapshot.source) {
+            FindingsSnapshotService.Source.SARIF -> {
+                val path = snapshot.sarifPath.orEmpty()
+                path.substringAfterLast('/').substringAfterLast('\\').ifBlank { "SARIF" }
+            }
+            FindingsSnapshotService.Source.QODANA -> "Qodana"
+            null -> "Explanations"
+        }
     }
     private val explanations = mutableMapOf<String, ExplanationTreeEntry>()
 
