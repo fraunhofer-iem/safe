@@ -143,16 +143,24 @@ class ExplanationPanel(private val project: Project) : javax.swing.JPanel() {
                             // The user may have explained this finding in a previous
                             // session; if so, render it straight away instead of
                             // making them invoke "Get Explanation" again.
+                            // `getCachedExplanation` walks the workspace file index
+                            // (PromptTemplate.getMethodCode → FilenameIndex), which is
+                            // a slow operation prohibited on the EDT. Bounce to a pool
+                            // thread under a read action and come back to the EDT to
+                            // render.
                             val level = props.getValue("de.fraunhofer.iem.safe.expertiseValue")
                                 ?: "Intermediate"
-                            val cached = LlmClient.getCachedExplanation(issue, project, level)
-                            if (cached != null) {
-                                issue.explanation = cached
-                                showHtml(issue, jsQuery)
-                                showBrowser()
-                            } else {
-                                showEmptyHint()
-                            }
+                            ReadAction.nonBlocking<String?> {
+                                LlmClient.getCachedExplanation(issue, project, level)
+                            }.finishOnUiThread(ModalityState.any()) { cached ->
+                                if (cached != null) {
+                                    issue.explanation = cached
+                                    showHtml(issue, jsQuery)
+                                    showBrowser()
+                                } else {
+                                    showEmptyHint()
+                                }
+                            }.submit(AppExecutorUtil.getAppExecutorService())
                         }
                         explanation == "N/A" -> {
                             browser.loadHTML("<i>LLM is still running please wait.</i>")
