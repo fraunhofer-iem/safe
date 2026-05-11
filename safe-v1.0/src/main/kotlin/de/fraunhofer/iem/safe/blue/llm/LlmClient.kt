@@ -20,6 +20,18 @@ object LlmClient {
     private val explanationCache: MutableMap<String, String> = mutableMapOf()
 
     /**
+     * Persistent-cache key, scoped to the SARIF file the findings were imported from.
+     * Two SARIF files that report the same finding at the same line in the same source
+     * file would otherwise collide on a prompt-body hash; prefixing with the active
+     * SARIF path keeps each report's cache independent.
+     */
+    private fun cacheKeyFor(project: Project, body: String): String {
+        val activeSarif = PropertiesComponent.getInstance(project)
+            .getValue("de.fraunhofer.iem.safe.file").orEmpty()
+        return ExplanationCacheService.keyOf("$activeSarif\n$body")
+    }
+
+    /**
      * Sends the prompts to LLM based on the expertise level and parses the response for the explanation of SAST issue
      */
     fun sendRequest(issue: Issue?, project: Project, experienceLevel: String): String? {
@@ -31,7 +43,7 @@ object LlmClient {
         // Persistent cache first — if we already have an answer for this exact
         // prompt body (across sessions), reuse it without hitting the LLM.
         val persistentCache = ExplanationCacheService.getInstance(project)
-        val cacheKey = ExplanationCacheService.keyOf(systemPrompt + "\n" + userPrompt + "\n" + llmConfig.temperature)
+        val cacheKey = cacheKeyFor(project, systemPrompt + "\n" + userPrompt + "\n" + llmConfig.temperature)
         persistentCache.get(cacheKey)?.let { return it }
 
         val client = OpenAIOkHttpClient.builder()
@@ -72,7 +84,7 @@ object LlmClient {
         )
 
         val persistentCache = ExplanationCacheService.getInstance(project)
-        val cacheKey = ExplanationCacheService.keyOf(requestBody)
+        val cacheKey = cacheKeyFor(project, requestBody)
         persistentCache.get(cacheKey)?.let { return it }
 
         if (explanationCache.containsKey(requestBody)) {
@@ -101,9 +113,7 @@ object LlmClient {
         val llmConfig = LlmConfig()
         val systemPrompt = PromptTemplate.getSystemPrompt()
         val userPrompt = PromptTemplate.buildUserPrompt(issue, experienceLevel, project)
-        val key = ExplanationCacheService.keyOf(
-            systemPrompt + "\n" + userPrompt + "\n" + llmConfig.temperature
-        )
+        val key = cacheKeyFor(project, systemPrompt + "\n" + userPrompt + "\n" + llmConfig.temperature)
         return ExplanationCacheService.getInstance(project).get(key)
     }
 
@@ -120,7 +130,7 @@ object LlmClient {
         val response = sendRequest(requestBody)
         explanationCache[requestBody] = response
         ExplanationCacheService.getInstance(project)
-            .put(ExplanationCacheService.keyOf(requestBody), response)
+            .put(cacheKeyFor(project, requestBody), response)
         return response
     }
 

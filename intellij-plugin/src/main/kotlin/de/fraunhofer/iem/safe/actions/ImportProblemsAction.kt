@@ -156,6 +156,9 @@ class ImportProblemsAction : AnAction() {
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("SAFE-Red") ?: return
             val highlightService = VulnerabilityHighlightService.getInstance(project)
             val storage = ExplanationStorageService.getInstance(project)
+            // SARIF switch: drop the previous import's storage entries so the editor listener
+            // doesn't re-apply highlights for findings the user just walked away from.
+            storage.clear()
             for (finding in findings) {
                 if (finding.filePath == null || finding.startLine == null) continue
                 storage.store(ExplanationStorageService.ExplanationEntry(finding, ""))
@@ -164,7 +167,7 @@ class ImportProblemsAction : AnAction() {
             if (interactive) {
                 toolWindow.show {
                     val panel = toolWindow.contentManager.getContent(0)?.component as? ExplainPanel ?: return@show
-                    val inserted = panel.addFindings(findings)
+                    val inserted = panel.replaceFindings(findings)
                     for (finding in findings) {
                         if (finding.filePath == null || finding.startLine == null) continue
                         highlightService.applyHighlight(project, finding, explanation = "")
@@ -181,7 +184,7 @@ class ImportProblemsAction : AnAction() {
 
             // Non-interactive (startup) — populate the panel only if it's already been created,
             // and only apply highlights to files that are already open.
-            (toolWindow.contentManager.getContent(0)?.component as? ExplainPanel)?.addFindings(findings)
+            (toolWindow.contentManager.getContent(0)?.component as? ExplainPanel)?.replaceFindings(findings)
             val openFiles = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFiles.toSet()
             val basePath = project.basePath ?: return
             for (finding in findings) {

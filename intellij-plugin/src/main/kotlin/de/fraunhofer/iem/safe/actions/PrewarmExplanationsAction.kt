@@ -17,6 +17,7 @@ import de.fraunhofer.iem.safe.study.StudyModeSettings
 import de.fraunhofer.iem.safe.study.TelemetryRecorder
 import de.fraunhofer.iem.safe.ui.ExplanationCacheService
 import de.fraunhofer.iem.safe.ui.ExplanationStorageService
+import de.fraunhofer.iem.safe.util.FindingsSnapshotService
 
 /**
  * Toolbar / menu action that walks every imported finding and asks the active
@@ -57,6 +58,14 @@ class PrewarmExplanationsAction : AnAction(
                 val provider = LlmProviderFactory.current()
                 val providerId = SafeLlmSettings.getInstance().providerKind.id
                 val cache = ExplanationCacheService.getInstance(project)
+                val source = run {
+                    val snap = FindingsSnapshotService.getInstance(project)
+                    when (snap.source) {
+                        FindingsSnapshotService.Source.SARIF -> snap.sarifPath.orEmpty()
+                        FindingsSnapshotService.Source.QODANA -> "qodana"
+                        null -> ""
+                    }
+                }
 
                 var ok = 0
                 var skipped = 0
@@ -76,6 +85,7 @@ class PrewarmExplanationsAction : AnAction(
                             finding.startLine,
                             finding.endLine,
                             providerId,
+                            source,
                         ) != null
                     ) {
                         skipped++
@@ -111,6 +121,7 @@ class PrewarmExplanationsAction : AnAction(
                         finding.endLine,
                         response,
                         providerId,
+                        source,
                     )
                     ok++
                 }

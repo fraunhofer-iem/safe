@@ -971,7 +971,8 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     private fun loadCachedExplanations() {
         val cache = ExplanationCacheService.getInstance(project)
         val provider = activeProviderId()
-        for (cached in cache.getAllForProvider(provider)) {
+        val source = activeSourceKey()
+        for (cached in cache.getAllForProviderAndSource(provider, source)) {
 
             // Cache stores cwe as a plain id string — re-enrich with the friendly name from CWE_MAPPING
             val cwe = cached.cwe?.let { QodanaNodeExtractor.cweFromTagString(it) }
@@ -999,6 +1000,20 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun activeProviderId(): String = SafeLlmSettings.getInstance().providerKind.id
+
+    /**
+     * Returns a stable identifier for the source of the currently-imported findings,
+     * used as part of the explanation cache key so two SARIF imports that report the
+     * same finding don't share each other's explanations.
+     */
+    private fun activeSourceKey(): String {
+        val snap = FindingsSnapshotService.getInstance(project)
+        return when (snap.source) {
+            FindingsSnapshotService.Source.SARIF -> snap.sarifPath.orEmpty()
+            FindingsSnapshotService.Source.QODANA -> "qodana"
+            null -> ""
+        }
+    }
 
     /**
      * Tear down the tree, in-memory entry map, detail pane, and source-editor highlights,
@@ -1047,6 +1062,9 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         val id = inspectionId ?: return false
         val key = findingKey(id, fileName, startLine, endLine)
         val entry = explanations[key] ?: return false
+        // Placeholder entries (no cached response) live in the same map after a fresh
+        // import — don't claim to serve them from cache, or the caller will skip the LLM.
+        if (entry.rawResponse.isBlank()) return false
         setHtmlContent(formatEntryAsHtml(entry))
         selectEntryInTree(entry)
         return true
@@ -1079,7 +1097,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         // The active provider id + line range scope the entry, so switching providers or
         // explaining a different occurrence of the same rule doesn't overwrite this one.
         ExplanationCacheService.getInstance(project)
-            .store(id, cwe?.id, fileName, startLine, endLine, response, activeProviderId())
+            .store(id, cwe?.id, fileName, startLine, endLine, response, activeProviderId(), activeSourceKey())
 
         if (!explanations.containsKey(key)) {
             explanations[key] = entry
@@ -1093,6 +1111,61 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
         updateEmptyState()
         selectEntryInTree(entry)
         setHtmlContent(formatEntryAsHtml(entry))
+    }
+
+    /**
+     * Tear down the tree and re-populate it from [findings], pulling in any cached
+     * explanation that matches the active (provider, source) for each finding's key.
+     * Used after a fresh SARIF import so the tree reflects exactly the current
+     * source's findings — both cached and not-yet-explained — with no leftovers
+     * from the previous import.
+     */
+    fun replaceFindings(findings: List<VulnerabilityInfo>): Int {
+        rootNode.removeAllChildren()
+        explanations.clear()
+        currentEntry = null
+        cachedStepExplanations = emptyMap()
+        setHtmlContent("")
+        updateFlowsPane(emptyList())
+        VulnerabilityHighlightService.getInstance(project).clearTraceHighlights()
+
+        val cache = ExplanationCacheService.getInstance(project)
+        val provider = activeProviderId()
+        val source = activeSourceKey()
+
+        var inserted = 0
+        for (vuln in findings) {
+            val id = vuln.inspectionId ?: "Unknown"
+            val key = findingKey(id, vuln.filePath, vuln.startLine, vuln.endLine)
+            if (explanations.containsKey(key)) continue
+
+            val cached = if (vuln.inspectionId != null && vuln.filePath != null) {
+                cache.find(vuln.inspectionId, vuln.filePath, vuln.startLine, vuln.endLine, provider, source)
+            } else null
+
+            val cwe = cached?.cwe?.let { QodanaNodeExtractor.cweFromTagString(it) }
+                ?: vuln.cwe
+                ?: Cwe(id = id)
+
+            val entry = ExplanationTreeEntry(
+                inspectionId = id,
+                cwe = cwe,
+                filePath = vuln.filePath,
+                htmlExplanation = "",
+                rawResponse = cached?.response ?: "",
+                startLine = vuln.startLine,
+                endLine = vuln.endLine,
+                sastMessage = vuln.message,
+                severity = vuln.severity,
+            )
+            explanations[key] = entry
+            insertEntryIntoTree(entry)
+            inserted++
+        }
+        treeModel.reload(rootNode)
+        if (rootNode.childCount > 0) tree.expandRow(0)
+        updateEmptyState()
+        return inserted
     }
 
     /**
@@ -1113,7 +1186,7 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             // Scoped to the active provider — the same finding can legitimately appear as
             // "Not explained" under provider B while having an entry under provider A.
             if (vuln.inspectionId != null && vuln.filePath != null
-                && cache.find(vuln.inspectionId, vuln.filePath, vuln.startLine, vuln.endLine, activeProviderId()) != null) continue
+                && cache.find(vuln.inspectionId, vuln.filePath, vuln.startLine, vuln.endLine, activeProviderId(), activeSourceKey()) != null) continue
 
             val entry = ExplanationTreeEntry(
                 inspectionId = id,
