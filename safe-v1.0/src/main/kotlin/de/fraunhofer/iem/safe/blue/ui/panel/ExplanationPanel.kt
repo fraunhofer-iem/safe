@@ -545,6 +545,11 @@ class ExplanationPanel(private val project: Project) : javax.swing.JPanel() {
 <head>
 <meta charset="utf-8"/>
 <meta name="color-scheme" content="light"/>
+<!-- Suppress alert/confirm/prompt before any LLM-emitted markup runs.
+     Code examples occasionally include literal `<script>alert(...)</script>`
+     or `<img onerror=alert(...)>` snippets that the embedded browser would
+     otherwise execute and pop up a dialog over the IDE. -->
+<script>window.alert = window.confirm = window.prompt = function () {};</script>
 <style>
             body        { background:#fff; color:#1c1c1c;
                           font-family:"Segoe UI",sans-serif;

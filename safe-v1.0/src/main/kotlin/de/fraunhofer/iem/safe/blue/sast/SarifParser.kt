@@ -83,6 +83,10 @@ object SarifParser {
     ): Results {
 
         val sarifFile = File(filePath)
+        if (!sarifFile.isFile) {
+            logger.warn("SARIF file not found at $filePath; returning empty results")
+            return Results(filePath, project.basePath ?: "", "Semgrep", emptyList())
+        }
 
         try {
 
@@ -149,10 +153,11 @@ object SarifParser {
             )
 
         } catch (e: Exception) {
-            println("Error parsing SARIF from project: ${e.message}")
-            logger.error(e.message)
+            // Use `warn` (not `error`) — IntelliJ's Logger.error rethrows in dev/sandbox
+            // builds, which would surface a stale-state read as a fatal crash.
+            logger.warn("Error parsing SARIF from $filePath: ${e.message}", e)
         }
-        return TODO("Provide the return value")
+        return Results(filePath, project.basePath ?: "", "Semgrep", emptyList())
     }
 
     /*fun parseSarifFileFromResourceStream(
