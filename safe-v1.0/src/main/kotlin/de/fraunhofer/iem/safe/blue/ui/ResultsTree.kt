@@ -54,20 +54,19 @@ class ResultsTree(private val project: Project) : Tree() {
         cellRenderer = ResultsTreeRenderer()
 
         //Load last file
-        if (PropertiesComponent.getInstance(project)
-                .isValueSet("de.fraunhofer.iem.safe.file")
-        ) {
+        val lastPath = PropertiesComponent.getInstance(project).getValue("de.fraunhofer.iem.safe.file")
+        if (lastPath != null && java.io.File(lastPath).isFile) {
 
             // Load SAST results from given path
-            addTreeNodes(
-                parseFile(
-                    PropertiesComponent.getInstance(project)
-                        .getValue("de.fraunhofer.iem.safe.file")!!,
-                    project
-                )
-            )
+            addTreeNodes(parseFile(lastPath, project))
             expandTree()
         } else {
+            // Either no path persisted, or the persisted path doesn't exist on this
+            // machine (project moved across computers). Drop the stale property so the
+            // empty state is shown and we don't keep retrying every panel open.
+            if (lastPath != null) {
+                PropertiesComponent.getInstance(project).unsetValue("de.fraunhofer.iem.safe.file")
+            }
             model = null
             this.emptyText.setText(
                 PluginBundle.lazy("safe.ui.tree.empty").get(),
