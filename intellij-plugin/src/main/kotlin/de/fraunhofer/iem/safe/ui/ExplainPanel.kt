@@ -1428,12 +1428,16 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
                 appendLine("""<h1>$cweLabel</h1>""")
             }
 
-            // Expandable area with the original SAST tool message — collapsed by default,
-            // toggled via an internal hyperlink handled by the panel's HyperlinkListener.
             val meta = findingMetaFor(entry.inspectionId, entry.filePath)
             val sastMessage = (entry.sastMessage ?: meta?.message)?.takeIf { it.isNotBlank() }
             val ruleName = (meta?.ruleName ?: entry.inspectionId).takeIf { it.isNotBlank() }
-            if (sastMessage != null) {
+
+            // Expandable area with the original SAST tool message — collapsed by default,
+            // toggled via an internal hyperlink handled by the panel's HyperlinkListener.
+            // Rendered as a small inline block; positioned below the TL;DR when there is
+            // an explanation so it sits between the summary and the deeper sections.
+            fun appendSastToggle() {
+                if (sastMessage == null) return
                 val toggleLabel = if (sastMessageExpanded) "Hide original finding message" else "Show original finding message"
                 appendLine("""<p class="toggle-row"><a href="#toggle-sast">$toggleLabel</a></p>""")
                 if (sastMessageExpanded) {
@@ -1457,11 +1461,15 @@ class ExplainPanel(private val project: Project) : JPanel(BorderLayout()) {
             }
 
             if (entry.rawResponse.isBlank()) {
+                // No explanation yet — show the toggle right under the title so the
+                // original SAST message is still reachable.
+                appendSastToggle()
                 appendLine("""<p class="muted" style="font-style:italic; margin-top:14px;">No explanation yet. Right-click the finding and run <b>Explain Vulnerability</b> to generate one.</p>""")
             } else {
                 if (tldrText.isNotBlank()) {
                     appendLine("""<p class="tldr"><b>TL;DR:</b> ${Glossary.annotate(tldrText.escapeHtml().toInlineHtml())}</p>""")
                 }
+                appendSastToggle()
                 appendSection("What", whatText)
                 appendSection("Why", whyText)
                 appendSection("Where", whereText)
